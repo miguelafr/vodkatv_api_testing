@@ -1,0 +1,11 @@
+{application, vaa,
+ [
+  {description, "Tests for VoDKATV OSS/BSS API"},
+  {vsn, "svn"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {env, []}
+ ]}.
