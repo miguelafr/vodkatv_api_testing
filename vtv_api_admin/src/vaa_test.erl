@@ -75,11 +75,11 @@ precondition(_S, {call, ?MODULE, delete_device, [DeviceIds]}) ->
     %% deviceId can not be the empty string "".
     %% This precondition is needed for shrinking.
     not lists:member("", DeviceIds);
-%precondition(_S, {call, ?MODULE, update_device,
-%		  ["", _PhysicalId, _DeviceClass, _RoomId, _Description]}) ->
+precondition(_S, {call, ?MODULE, update_device,
+		  ["", _PhysicalId, _DeviceClass, _RoomId, _Description]}) ->
     %% deviceId can not be the empty string "".
     %% This precondition is needed for shrinking.
-%    false;
+    false;
 precondition(_S, _C)->
     true.
 
