@@ -29,7 +29,7 @@ prop_state_machine() ->
        ?FORALL(
           Cmds, commands(?MODULE),
           numtests(
-            500,
+            1000,
             begin
                 setup(),
                 {H, S, Res} = run_commands(?MODULE, Cmds),
@@ -75,11 +75,11 @@ precondition(_S, {call, ?MODULE, delete_device, [DeviceIds]}) ->
     %% deviceId can not be the empty string "".
     %% This precondition is needed for shrinking.
     not lists:member("", DeviceIds);
-precondition(_S, {call, ?MODULE, update_device,
-		  ["", _PhysicalId, _DeviceClass, _RoomId, _Description]}) ->
+%precondition(_S, {call, ?MODULE, update_device,
+%		  ["", _PhysicalId, _DeviceClass, _RoomId, _Description]}) ->
     %% deviceId can not be the empty string "".
     %% This precondition is needed for shrinking.
-    false;
+%    false;
 precondition(_S, _C)->
     true.
 
@@ -91,27 +91,27 @@ postcondition(_S, {call, ?MODULE, Op, Params}, {error, Reason})->
 
 postcondition(_S, {call, ?MODULE, create_room, ["", _Description]},
 	      Result)->
-    check_simple_errors(Result#room.errors, "required", "roomId", "");
+    check_simple_errors(Result#createRoomResponse.errors, "required", "roomId", "");
 postcondition(S, {call, ?MODULE, create_room, [RoomId, Description]},
 	      Result)->
     try
         _Room = search_room(RoomId, S#state.rooms),
-        check_simple_errors(Result#room.errors, "duplicated",
+        check_simple_errors(Result#createRoomResponse.errors, "duplicated",
                             "roomId", RoomId)
     catch room_not_found ->
-            Result#room.roomId == RoomId
-                andalso Result#room.description == Description
+            Result#createRoomResponse.roomId == RoomId
+                andalso Result#createRoomResponse.description == Description
     end;
 
 postcondition(S, {call, ?MODULE, find_all_rooms, []}, Result)->
     lists:all(
       fun(Room) ->
 	      lists:member(Room, S#state.rooms)
-      end, Result)
+      end, Result#findAllRoomsResponse.rooms)
 	andalso
 	lists:all(
 	  fun(Room) ->
-		  lists:member(Room, Result)
+		  lists:member(Room, Result#findAllRoomsResponse.rooms)
 	  end, S#state.rooms);
 
 postcondition(S, {call, ?MODULE, delete_room, [RoomIds]}, Result)->
@@ -119,66 +119,72 @@ postcondition(S, {call, ?MODULE, delete_room, [RoomIds]}, Result)->
       fun(RoomId) ->
               try
                   _Room = search_room(RoomId, S#state.rooms),
-                  lists:member(RoomId, Result#deletedRoom.roomId)
+                  lists:member(
+		    #deletedRoom {
+		       roomId = RoomId
+		      },
+		    Result#deleteRoomResponse.rooms)
               catch room_not_found ->
 		      lists:any(
 			fun(Error) ->
 				check_simple_error(
 				  Error, "not_found", "roomId", RoomId)
-			end, Result#deletedRoom.errors)
+			end, Result#deleteRoomResponse.errors)
 	      end
       end, RoomIds);
 
 postcondition(_S, {call, ?MODULE, create_device,
 		   [PhysicalId, _DeviceClass, _RoomId, _Description]},
  	      {_DeviceId, Result}) when PhysicalId =:= "" ->
-    check_simple_errors(Result#device.errors, "required", "physicalId", "");
+    check_simple_errors(Result#createDeviceResponse.errors, "required", "physicalId", "");
 postcondition(_S, {call, ?MODULE, create_device,
                    [_PhysicalId, _DeviceClass, RoomId, _Description]},
  	      {_DeviceId, Result}) when RoomId =:= "" ->
-    check_simple_errors(Result#device.errors, "required", "roomId", "");
+    check_simple_errors(Result#createDeviceResponse.errors, "required", "roomId", "");
 postcondition(S, {call, ?MODULE, create_device,
 		  [PhysicalId, DeviceClass, RoomId, Description]},
  	      {_DeviceId, Result})->
     try
         _Room = search_room(RoomId, S#state.rooms),
         _Device = search_device_by_physical_id(PhysicalId, S#state.devices),
-        check_simple_errors(Result#device.errors, "duplicated",
+        check_simple_errors(Result#createDeviceResponse.errors, "duplicated",
                             "physicalId", PhysicalId)
     catch room_not_found ->
-            check_simple_errors(Result#device.errors, "not_found",
+            check_simple_errors(Result#createDeviceResponse.errors, "not_found",
                                 "roomId", RoomId);
           device_by_physical_id_not_found ->
-            is_integer(list_to_integer(Result#device.deviceId))
-                andalso Result#device.physicalId == PhysicalId
-                andalso equals_device_class(DeviceClass, Result#device.deviceClass)
-                andalso Result#device.roomId == RoomId
-                andalso Result#device.description == Description
+            is_integer(list_to_integer(Result#createDeviceResponse.deviceId))
+                andalso Result#createDeviceResponse.physicalId == PhysicalId
+                andalso equals_device_class(DeviceClass, Result#createDeviceResponse.deviceClass)
+                andalso Result#createDeviceResponse.roomId == RoomId
+                andalso Result#createDeviceResponse.description == Description
     end;
 
 postcondition(S, {call, ?MODULE, find_devices, [StartIndex, _Count]},
  	      Result) when StartIndex > length(S#state.devices) ->
-    length(Result) == 0;
+    length(Result#findDevicesResponse.devices) == 0;
 postcondition(S, {call, ?MODULE, find_devices, [StartIndex, Count]},
  	      Result) ->
-    length(Result) == min(Count, length(S#state.devices) - StartIndex + 1)
+    length(Result#findDevicesResponse.devices) ==
+	min(Count, length(S#state.devices) - StartIndex + 1)
         andalso
         lists:all(
           fun(Device) ->
                   lists:member(Device, S#state.devices)
-          end, Result);
+          end, Result#findDevicesResponse.devices);
+
 postcondition(S, {call, ?MODULE, find_devices_by_room, [RoomId]}, Result)->
     lists:all(
       fun(Device) ->
 	      Device#device.roomId == RoomId
 		  andalso lists:member(Device, S#state.devices)
-      end, Result)
+      end, Result#findDevicesByRoomResponse.devices)
 	andalso
 	lists:all(
 	  fun(Device) ->
 		  case Device#device.roomId of
 		      RoomId ->
-			  lists:member(Device, Result);
+			  lists:member(Device, Result#findDevicesByRoomResponse.devices);
 		      _ ->
 			  true
 		  end
@@ -187,30 +193,30 @@ postcondition(S, {call, ?MODULE, find_devices_by_room, [RoomId]}, Result)->
 postcondition(_S, {call, ?MODULE, find_device_by_id, [DeviceId]},
 	      Result) when DeviceId =:= undefined;
 			   DeviceId =:= "" ->
-    check_simple_errors(Result#device.errors, "required", "deviceId", "");
+    check_simple_errors(Result#findDeviceByIdResponse.errors, "required", "deviceId", "");
 postcondition(S, {call, ?MODULE, find_device_by_id, [DeviceId]},
 	      Result)->
     try
         Device = search_device(DeviceId, S#state.devices),
-        Result#device.deviceId == DeviceId
-            andalso Result#device.physicalId == Device#device.physicalId
+        Result#findDeviceByIdResponse.deviceId == DeviceId
+            andalso Result#findDeviceByIdResponse.physicalId == Device#device.physicalId
             andalso equals_device_class(Device#device.deviceClass,
-                                        Result#device.deviceClass)
-            andalso Result#device.roomId == Device#device.roomId
-            andalso Result#device.description == Device#device.description
+                                        Result#findDeviceByIdResponse.deviceClass)
+            andalso Result#findDeviceByIdResponse.roomId == Device#device.roomId
+            andalso Result#findDeviceByIdResponse.description == Device#device.description
     catch device_not_found ->
-            check_simple_errors(Result#device.errors,
+            check_simple_errors(Result#findDeviceByIdResponse.errors,
                                 "not_found", "deviceId", DeviceId)
     end;
 
 postcondition(_S, {call, ?MODULE, update_device,
 		   [_DeviceId, PhysicalId, _DeviceClass, _RoomId, _Description]},
 	      Result) when PhysicalId =:= "" ->
-    check_simple_errors(Result#device.errors, "required", "physicalId", "");
+    check_simple_errors(Result#updateDeviceResponse.errors, "required", "physicalId", "");
 postcondition(_S, {call, ?MODULE, update_device,
 		   [_DeviceId, _PhysicalId, _DeviceClass, RoomId, _Description]},
 	      Result) when RoomId =:= "" ->
-    check_simple_errors(Result#device.errors, "required", "roomId", "");
+    check_simple_errors(Result#updateDeviceResponse.errors, "required", "roomId", "");
 postcondition(S, {call, ?MODULE, update_device,
 		  [DeviceId, PhysicalId, DeviceClass, RoomId, Description]},
 	      Result)->
@@ -218,7 +224,7 @@ postcondition(S, {call, ?MODULE, update_device,
         _Room = search_room(RoomId, S#state.rooms),
         case DeviceId of
             undefined ->
-                check_simple_errors(Result#device.errors, "not_found",
+                check_simple_errors(Result#updateDeviceResponse.errors, "not_found",
                                     "deviceId", "0");
             _ ->
                 _Device = search_device(DeviceId, S#state.devices),
@@ -226,7 +232,7 @@ postcondition(S, {call, ?MODULE, update_device,
                     search_device_by_physical_id(PhysicalId, S#state.devices),
                 case DevicePhysicalId#device.deviceId /= DeviceId of
                     true ->
-                        check_simple_errors(Result#device.errors,
+                        check_simple_errors(Result#updateDeviceResponse.errors,
                                             "duplicated", "physicalId", PhysicalId);
                     false ->
                         %% It was really found, but it is the same case
@@ -234,17 +240,17 @@ postcondition(S, {call, ?MODULE, update_device,
                 end
         end
     catch room_not_found ->
-            check_simple_errors(Result#device.errors,
+            check_simple_errors(Result#updateDeviceResponse.errors,
                                 "not_found", "roomId", RoomId);
           device_not_found ->
-            check_simple_errors(Result#device.errors, "not_found",
+            check_simple_errors(Result#updateDeviceResponse.errors, "not_found",
                                 "deviceId", DeviceId);
           device_by_physical_id_not_found ->
-            Result#device.deviceId == DeviceId
-                andalso Result#device.physicalId == PhysicalId
-                andalso equals_device_class(DeviceClass, Result#device.deviceClass)
-                andalso Result#device.roomId == RoomId
-                andalso Result#device.description == Description
+            Result#updateDeviceResponse.deviceId == DeviceId
+                andalso Result#updateDeviceResponse.physicalId == PhysicalId
+                andalso equals_device_class(DeviceClass, Result#updateDeviceResponse.deviceClass)
+                andalso Result#updateDeviceResponse.roomId == RoomId
+                andalso Result#updateDeviceResponse.description == Description
     end;
 
 postcondition(S, {call, ?MODULE, delete_device, [DeviceIds]}, Result) ->
@@ -252,13 +258,15 @@ postcondition(S, {call, ?MODULE, delete_device, [DeviceIds]}, Result) ->
       fun(DeviceId) ->
               try
                   _Device = search_device(DeviceId, S#state.devices),
-                  lists:member(DeviceId, Result#deletedDevice.deviceId)
+                  lists:member(
+		    #deletedDevice { deviceId = DeviceId },
+		    Result#deleteDeviceResponse.devices)
               catch device_not_found ->
 		      lists:any(
 			fun(Error) ->
 				check_simple_error(
 				  Error, "not_found", "deviceId", DeviceId)
-			end, Result#deletedDevice.errors)
+			end, Result#deleteDeviceResponse.errors)
 	      end
       end, DeviceIds);
 
@@ -576,11 +584,11 @@ sut_result({error, Reason}) ->
 
 delete_all_rooms()->
     case vaa_sut:find_all_rooms() of
-	{ok, Rooms} ->
+	{ok, Response} ->
 	    lists:map(
 	      fun(Room) ->
 		      vaa_sut:delete_room([Room#room.roomId])
-	      end, Rooms);
+	      end, Response#findAllRoomsResponse.rooms);
 	Error ->
 	    throw(Error)
     end.
@@ -589,7 +597,7 @@ delete_all_rooms()->
 %% Adapter functions
 %%-----------------------------------------------------------------------------
 create_room(RoomId, Description)->
-    sut_result(?SUT:create_room(RoomId, Description)). 
+    sut_result(?SUT:create_room(RoomId, Description)).
 
 find_all_rooms() ->
     sut_result(?SUT:find_all_rooms()).
@@ -600,7 +608,7 @@ delete_room(RoomIds)->
 create_device(PhysicalId, DeviceClass, RoomId, Description) ->
     case sut_result(?SUT:create_device(PhysicalId, DeviceClass, RoomId, Description)) of
         {error, Reason} -> {error, Reason};
-        Result -> {Result#device.deviceId, Result}
+        Result -> {Result#createDeviceResponse.deviceId, Result}
     end.
 
 find_devices(StartIndex, Count) ->

@@ -1,15 +1,20 @@
--record(room, {
+-record(createRoomResponse, {
 	  roomId,
 	  description,
 	  errors = []
 	 }).
 
--record(deletedRoom, {
-	  roomId,
+-record(findAllRoomsResponse, {
+	  rooms,
 	  errors = []
 	 }).
 
--record(device, {
+-record(deleteRoomResponse, {
+	  rooms,
+	  errors = []
+	 }).
+
+-record(createDeviceResponse, {
 	  deviceId,
 	  physicalId,
 	  deviceClass,
@@ -18,9 +23,58 @@
 	  errors = []
 	 }).
 
--record(deletedDevice, {
-	  deviceId,
+-record(findDevicesResponse, {
+	  devices,
 	  errors = []
+	 }).
+
+-record(findDevicesByRoomResponse, {
+	  devices,
+	  errors = []
+	 }).
+
+-record(findDeviceByIdResponse, {
+	  deviceId,
+	  physicalId,
+	  deviceClass,
+	  roomId,
+	  description,
+	  errors = []
+	 }).
+
+-record(updateDeviceResponse, {
+	  deviceId,
+	  physicalId,
+	  deviceClass,
+	  roomId,
+	  description,
+	  errors = []
+	 }).
+
+-record(deleteDeviceResponse, {
+	  devices,
+	  errors = []
+	 }).
+
+-record(room, {
+	  roomId,
+	  description
+	 }).
+
+-record(deletedRoom, {
+	  roomId
+	 }).
+
+-record(device, {
+	  deviceId,
+	  physicalId,
+	  deviceClass,
+	  roomId,
+	  description
+	 }).
+
+-record(deletedDevice, {
+	  deviceId
 	 }).
 
 -record(error, {
@@ -30,6 +84,6 @@
 	 }).
 
 -record(errorParam, {
-	name,
-	value
-	}).
+	  name,
+	  value
+	 }).

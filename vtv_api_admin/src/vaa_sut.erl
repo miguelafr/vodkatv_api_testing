@@ -13,88 +13,88 @@
 %% SUT API
 %%---------------------------------------------------------------
 create_room(RoomId, Description)->
-    PostData = room_post_request(RoomId, Description),
+    PostData = create_room_params(RoomId, Description),
     Url = ?BASE_URL ++ "configuration/CreateRoom.do",
     http_request(post, Url, PostData,
-		 fun(Data) ->
-			 room_response(Data)
-		 end).
+     		 fun(Data) ->
+     			 create_room_response(Data)
+     		 end).
 
 find_all_rooms() ->
     Url = ?BASE_URL ++ "configuration/FindAllRooms.do",
     http_request(get, Url,
 		 fun(Data) ->
-			 rooms_response(Data)
+			 find_all_rooms_response(Data)
 		 end).
 
 
 delete_room(RoomIds)->
-    GetParams = room_ids_get_params(RoomIds),
+    GetParams = delete_room_params(RoomIds),
     Url = add_get_params(?BASE_URL ++ "configuration/DeleteRoom.do",
 			 GetParams),
     http_request(get, Url,
 		 fun(Data) ->
-			 room_ids_response(Data)
+			 delete_room_response(Data)
 		 end).
 
 create_device(PhysicalId, DeviceClass, RoomId, Description) ->
-    PostData = device_post_request(PhysicalId, DeviceClass, RoomId,
-				   Description),
+    PostData = create_device_params(PhysicalId, DeviceClass, RoomId,
+				    Description),
     Url = ?BASE_URL ++ "configuration/CreateDevice.do",
     http_request(post, Url, PostData,
 		 fun(Data) ->
-			 device_response(Data)
+			 create_device_response(Data)
 		 end).
 
 find_devices(StartIndex, Count) ->
-    GetParams = iterator_get_params(StartIndex, Count),
+    GetParams = find_devices_params(StartIndex, Count),
     Url = add_get_params(?BASE_URL ++ "configuration/FindDevices.do",
 			 GetParams),
     http_request(get, Url,
 		 fun(Data) ->
-			 devices_response(Data)
+			 find_devices_response(Data)
 		 end).
 
 find_devices_by_room(RoomId) ->
-    GetParams = room_ids_get_params([RoomId]),
+    GetParams = find_devices_by_room_params(RoomId),
     Url = add_get_params(?BASE_URL ++ "configuration/FindDevicesByRoom.do",
 			 GetParams),
     http_request(get, Url,
 		 fun(Data) ->
-			 devices_response(Data)
+			 find_devices_by_room_response(Data)
 		 end).
 
 find_device_by_id(DeviceId) ->
-    GetParams = device_ids_get_params([DeviceId]),
+    GetParams = find_device_by_id_params(DeviceId),
     Url = add_get_params(?BASE_URL ++ "configuration/FindDeviceById.do",
 			 GetParams),
     http_request(get, Url,
 		 fun(Data) ->
-			 device_response(Data)
+			 find_device_by_id_response(Data)
 		 end).
 
 update_device(DeviceId, PhysicalId, DeviceClass, RoomId, Description) ->
-    PostData = device_post_request(DeviceId, PhysicalId, DeviceClass, RoomId,
-				   Description),
+    PostData = update_device_params(DeviceId, PhysicalId, DeviceClass, RoomId,
+				    Description),
     Url = ?BASE_URL ++ "configuration/UpdateDevice.do",
     http_request(post, Url, PostData,
 		 fun(Data) ->
-			 device_response(Data)
+			 update_device_response(Data)
 		 end).
 
 delete_device(DeviceIds)->
-    GetParams = device_ids_get_params(DeviceIds),
+    GetParams = delete_device_params(DeviceIds),
     Url = add_get_params(?BASE_URL ++ "configuration/DeleteDevice.do",
 			 GetParams),
     http_request(get, Url,
 		 fun(Data) ->
-			 device_ids_response(Data)
+			 delete_device_response(Data)
 		 end).
 
 %%---------------------------------------------------------------
 %% Rooms
 %%---------------------------------------------------------------
-room_post_request(RoomId, Description)->
+create_room_params(RoomId, Description)->
     vaa_parser_xml:format(
       [{room,
 	[{contents,
@@ -103,42 +103,119 @@ room_post_request(RoomId, Description)->
 	  ]}
 	]}]).
 
-room_ids_get_params(RoomIds) ->
-    generate_get_params(lists:map(
-      fun(RoomId) ->
-	      {"roomId", RoomId}
-      end, RoomIds)).
-
-rooms_response(Data)->
-    Rooms = get_list(rooms, Data),
-    lists:map(
-      fun(Room) ->
-	      room_response([Room])
-      end, Rooms).
-
-room_response(Data)->
+create_room_response(Data)->
     RoomAttrs = get_list(room, Data),
-    #room {
+    #createRoomResponse {
        roomId = get_text(roomId, RoomAttrs),
        description = get_text(description, RoomAttrs),
        errors = errors_response(Data)
-    }.
+      }.
 
-room_ids_response(Data)->
-    Rooms = get_list(rooms, Data),
-    RoomIds = lists:map(fun(Room) ->
-		      RoomAttrs = get_list(room, [Room]),
-		      get_text(roomId, RoomAttrs)
-	      end, Rooms),
-    #deletedRoom {
-       roomId = RoomIds,
+find_all_rooms_response(Data)->
+    Rooms = lists:map(
+      fun(Room) ->
+	      room([Room])
+      end, get_list(rooms, Data)),
+    #findAllRoomsResponse {
+       rooms = Rooms,
        errors = errors_response(Data)
-    }.
+      }.
+
+delete_room_params(RoomIds) ->
+    generate_get_params(lists:map(
+			  fun(RoomId) ->
+				  {"roomId", RoomId}
+			  end, RoomIds)).
+
+delete_room_response(Data)->
+    DeletedRooms = lists:map(fun(Room) ->
+				     deletedRoom([Room])
+			     end, get_list(rooms, Data)),
+    #deleteRoomResponse {
+       rooms = DeletedRooms,
+       errors = errors_response(Data)
+      }.
+
+room(Data)->
+    RoomAttrs = get_list(room, Data),
+    #room {
+       roomId = get_text(roomId, RoomAttrs),
+       description = get_text(description, RoomAttrs)
+      }.
+
+deletedRoom(Data)->
+    RoomAttrs = get_list(room, Data),
+    #deletedRoom {
+       roomId = get_text(roomId, RoomAttrs)
+      }.
 
 %%---------------------------------------------------------------
 %% Devices
 %%---------------------------------------------------------------
-device_post_request(DeviceId, PhysicalId, DeviceClass, RoomId, Description)->
+create_device_params(PhysicalId, DeviceClass, RoomId, Description)->
+    vaa_parser_xml:format(
+      [{device,
+	[{contents,
+	  [{physicalId, [{text, PhysicalId}]},
+	   {deviceClass, [{text, DeviceClass}]},
+	   {roomId, [{text, RoomId}]},
+	   {description, [{text, Description}]}
+	  ]}
+	]}]).
+
+create_device_response(Data) ->
+    DeviceAttrs = get_list(device, Data),
+    #createDeviceResponse {
+       deviceId = get_text(id, DeviceAttrs),
+       physicalId = get_text(physicalId, DeviceAttrs),
+       deviceClass = get_text(deviceClass, DeviceAttrs),
+       roomId = get_text(roomId, DeviceAttrs),
+       description = get_text(description, DeviceAttrs),
+       errors = errors_response(Data)
+      }.
+
+find_devices_params(StartIndex, Count) ->
+    generate_get_params(
+      [{"startIndex", StartIndex}, {"count", Count}]).
+
+find_devices_response(Data) ->
+    Devices = lists:map(
+		fun(Device) ->
+			device([Device])
+		end, get_list(devices, Data)),
+    #findDevicesResponse {
+       devices = Devices,
+       errors = errors_response(Data)
+      }.
+
+find_devices_by_room_params(RoomId)->
+    generate_get_params([{"roomId", RoomId}]).
+
+find_devices_by_room_response(Data) ->
+    Devices = lists:map(
+		fun(Device) ->
+			device([Device])
+		end, get_list(devices, Data)),
+    #findDevicesByRoomResponse {
+       devices = Devices,
+       errors = errors_response(Data)
+      }.
+
+find_device_by_id_params(DeviceId) ->
+    generate_get_params([{"deviceId", DeviceId}]).
+
+find_device_by_id_response(Data) ->
+    DeviceAttrs = get_list(device, Data),
+    #findDeviceByIdResponse {
+       deviceId = get_text(id, DeviceAttrs),
+       physicalId = get_text(physicalId, DeviceAttrs),
+       deviceClass = get_text(deviceClass, DeviceAttrs),
+       roomId = get_text(roomId, DeviceAttrs),
+       description = get_text(description, DeviceAttrs),
+       errors = errors_response(Data)
+      }.
+
+update_device_params(DeviceId, PhysicalId, DeviceClass, RoomId, Description)->
     vaa_parser_xml:format(
       [{device,
 	[{contents,
@@ -150,58 +227,48 @@ device_post_request(DeviceId, PhysicalId, DeviceClass, RoomId, Description)->
 	  ]}
 	]}]).
 
-device_post_request(PhysicalId, DeviceClass, RoomId, Description)->
-    vaa_parser_xml:format(
-      [{device,
-	[{contents,
-	  [{physicalId, [{text, PhysicalId}]},
-	   {deviceClass, [{text, DeviceClass}]},
-	   {roomId, [{text, RoomId}]},
-	   {description, [{text, Description}]}
-	  ]}
-	]}]).
+update_device_response(Data) ->
+    DeviceAttrs = get_list(device, Data),
+    #updateDeviceResponse {
+       deviceId = get_text(id, DeviceAttrs),
+       physicalId = get_text(physicalId, DeviceAttrs),
+       deviceClass = get_text(deviceClass, DeviceAttrs),
+       roomId = get_text(roomId, DeviceAttrs),
+       description = get_text(description, DeviceAttrs),
+       errors = errors_response(Data)
+      }.
 
-device_ids_get_params(DeviceIds) ->
+delete_device_params(DeviceIds)->
     generate_get_params(lists:map(
-      fun(DeviceId) ->
-	      {"deviceId", DeviceId}
-      end, DeviceIds)).
+			  fun(DeviceId) ->
+				  {"deviceId", DeviceId}
+			  end, DeviceIds)).
 
-devices_response(Data)->
-    Devices = get_list(devices, Data),
-    lists:map(
-      fun(Device) ->
-	      device_response([Device])
-      end, Devices).
+delete_device_response(Data) ->
+    Devices = lists:map(
+		fun(Device) ->
+			deletedDevice([Device])
+		end, get_list(devices, Data)),
+    #deleteDeviceResponse {
+       devices = Devices,
+       errors = errors_response(Data)
+      }.
 
-device_response(Data)->
+device(Data)->
     DeviceAttrs = get_list(device, Data),
     #device {
-	  deviceId = get_text(id, DeviceAttrs),
-	  physicalId = get_text(physicalId, DeviceAttrs),
-	  deviceClass = get_text(deviceClass, DeviceAttrs),
-	  roomId = get_text(roomId, DeviceAttrs),
-	  description = get_text(description, DeviceAttrs),
-	  errors = errors_response(Data)
-	 }.
+       deviceId = get_text(id, DeviceAttrs),
+       physicalId = get_text(physicalId, DeviceAttrs),
+       deviceClass = get_text(deviceClass, DeviceAttrs),
+       roomId = get_text(roomId, DeviceAttrs),
+       description = get_text(description, DeviceAttrs)
+      }.
 
-device_ids_response(Data)->
-    Devices = get_list(devices, Data),
-    DeviceIds = lists:map(fun(Device) ->
-		      DeviceAttrs = get_list(device, [Device]),
-		      get_text(id, DeviceAttrs)
-	      end, Devices),
+deletedDevice(Data)->
+    DeviceAttrs = get_list(device, Data),
     #deletedDevice {
-       deviceId = DeviceIds,
-       errors = errors_response(Data)
-    }.
-
-%%---------------------------------------------------------------
-%% Iterator
-%%---------------------------------------------------------------
-iterator_get_params(StartIndex, Count) ->
-    generate_get_params(
-      [{"startIndex", StartIndex}, {"count", Count}]).
+       deviceId = get_text(id, DeviceAttrs)
+      }.
 
 %%---------------------------------------------------------------
 %% Errors
@@ -302,7 +369,7 @@ http_request(Method, Url, Body, FunParse)->
 	    {error, {Code, Msg}};
 	{error, Reason} ->
 	    {error, Reason}
-   end.
+    end.
 
 do_http_request(get, Url, _Body)->
     httpc:request(get, {Url, []}, [], []);
