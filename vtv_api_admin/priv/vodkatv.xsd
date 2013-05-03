@@ -38,6 +38,20 @@
         </xsd:complexType>
     </xsd:element>
 
+    <xsd:element name="findAllRoomsResponse">
+        <xsd:annotation>
+            <xsd:documentation>
+            Response of operation FindAllRooms.
+            </xsd:documentation>
+        </xsd:annotation>
+        <xsd:complexType>
+            <xsd:sequence>
+                <xsd:element name="room" type="tns:room" minOccurs="0" maxOccurs="unbounded" />
+                <xsd:element name="errors" type="tns:errors" minOccurs="0" maxOccurs="1" />
+            </xsd:sequence>
+        </xsd:complexType>
+    </xsd:element>
+
     <xsd:element name="deleteRoomParams">
         <xsd:annotation>
             <xsd:documentation>

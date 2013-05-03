@@ -39,6 +39,18 @@
             <wsdl:output element="msg:createRoomResponse"/>
         </wsdl:operation>
 
+        <wsdl:operation name="FindAllRooms"
+            pattern="http://www.w3.org/ns/wsdl/in-out"
+            style="http://www.w3.org/ns/wsdl/style/iri"
+            wsdlx:safe="true">
+
+            <wsdl:documentation>
+            It returns all households already created in the system.
+            </wsdl:documentation>
+
+            <wsdl:output element="msg:findAllRoomResponse"/>
+        </wsdl:operation>
+
         <wsdl:operation name="DeleteRoom"
             pattern="http://www.w3.org/ns/wsdl/in-out"
             style="http://www.w3.org/ns/wsdl/style/iri"
@@ -148,6 +160,9 @@
         <!-- Room -->
         <wsdl:operation ref="tns:CreateRoom" whttp:method="POST"
                 whttp:location="external/admin/configuration/CreateRoom.do"/>
+
+        <wsdl:operation ref="tns:FindAllRooms" whttp:method="GET"
+                whttp:location="external/admin/configuration/FindAllRooms.do"/>
 
         <wsdl:operation ref="tns:DeleteRoom" whttp:method="GET"
                 whttp:location="external/admin/configuration/DeleteRoom.do"/>

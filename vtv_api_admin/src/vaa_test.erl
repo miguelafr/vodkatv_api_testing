@@ -55,6 +55,7 @@ initial_state()->
 command(S) ->
     oneof(
       [{call, ?MODULE, create_room, [gen_room_id(S), gen_description()]},
+       {call, ?MODULE, find_all_rooms, []},
        {call, ?MODULE, delete_room, [gen_room_ids(S)]},
        {call, ?MODULE, create_device, [gen_physical_id(S), gen_device_class(),
                                        gen_room_id(S), gen_description()]},
@@ -101,6 +102,17 @@ postcondition(S, {call, ?MODULE, create_room, [RoomId, Description]},
             Result#room.roomId == RoomId
                 andalso Result#room.description == Description
     end;
+
+postcondition(S, {call, ?MODULE, find_all_rooms, []}, Result)->
+    lists:all(
+      fun(Room) ->
+	      lists:member(Room, S#state.rooms)
+      end, Result)
+	andalso
+	lists:all(
+	  fun(Room) ->
+		  lists:member(Room, Result)
+	  end, S#state.rooms);
 
 postcondition(S, {call, ?MODULE, delete_room, [RoomIds]}, Result)->
     lists:all(
@@ -271,6 +283,9 @@ next_state(S, _R, {call, ?MODULE, create_room, [RoomId, Description]})->
               rooms = [NewRoom |  S#state.rooms]
              }
     end;
+
+next_state(S, _R, {call, ?MODULE, find_all_rooms, []})->
+    S;
 
 next_state(S, _R, {call, ?MODULE, delete_room, [RoomIds]})->
     lists:foldl(
