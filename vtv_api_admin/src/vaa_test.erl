@@ -162,16 +162,25 @@ postcondition(S, {call, ?MODULE, create_device,
 
 postcondition(S, {call, ?MODULE, find_devices, [StartIndex, _Count]},
  	      Result) when StartIndex > length(S#state.devices) ->
-    length(Result#findDevicesResponse.devices) == 0;
+    length(Result#findDevicesResponse.devices) == 0
+	andalso Result#findDevicesResponse.existsMore == "false"
+	andalso list_to_integer(Result#findDevicesResponse.countTotal) == length(S#state.devices);
 postcondition(S, {call, ?MODULE, find_devices, [StartIndex, Count]},
  	      Result) ->
     length(Result#findDevicesResponse.devices) ==
 	min(Count, length(S#state.devices) - StartIndex + 1)
-        andalso
-        lists:all(
-          fun(Device) ->
-                  lists:member(Device, S#state.devices)
-          end, Result#findDevicesResponse.devices);
+	andalso if
+		    (Count >= length(S#state.devices) - StartIndex + 1) ->
+			Result#findDevicesResponse.existsMore == "false";
+		    true ->
+			Result#findDevicesResponse.existsMore == "true"
+		end
+	andalso list_to_integer(Result#findDevicesResponse.countTotal) == length(S#state.devices)
+	andalso
+	lists:all(
+	  fun(Device) ->
+		  lists:member(Device, S#state.devices)
+	  end, Result#findDevicesResponse.devices);
 
 postcondition(S, {call, ?MODULE, find_devices_by_room, [RoomId]}, Result)->
     lists:all(

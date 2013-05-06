@@ -25,6 +25,8 @@
 
 -record(findDevicesResponse, {
 	  devices,
+	  existsMore,
+	  countTotal,
 	  errors = []
 	 }).
 

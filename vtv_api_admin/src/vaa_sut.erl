@@ -179,12 +179,15 @@ find_devices_params(StartIndex, Count) ->
       [{"startIndex", StartIndex}, {"count", Count}]).
 
 find_devices_response(Data) ->
+    DevicesAttrs = get_attrs(devices, Data),
     Devices = lists:map(
 		fun(Device) ->
 			device([Device])
 		end, get_list(devices, Data)),
     #findDevicesResponse {
        devices = Devices,
+       existsMore = get_text(existsMore, DevicesAttrs),
+       countTotal = get_text(countTotal, DevicesAttrs),
        errors = errors_response(Data)
       }.
 
@@ -317,6 +320,14 @@ add_get_params(Url, "") ->
     Url;
 add_get_params(Url, Params) ->
     Url ++ "?" ++ Params.
+
+get_attrs(Name, Element)->
+    case proplists:get_value(Name, Element) of
+	undefined ->
+	    [];
+	Data ->
+	    get_attrs(Data)
+    end.
 
 get_attrs(Element) ->
     case proplists:get_value(attrs, Element) of

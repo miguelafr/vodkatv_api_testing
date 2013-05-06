@@ -141,6 +141,8 @@
                 <xsd:element name="device" type="tns:device" minOccurs="0" maxOccurs="unbounded" />
                 <xsd:element name="errors" type="tns:errors" minOccurs="0" maxOccurs="1" />
             </xsd:sequence>
+            <xsd:attribute name="existsMore" type="xsd:boolean" />
+            <xsd:attribute name="countTotal" type="xsd:integer" />
         </xsd:complexType>
     </xsd:element>
 
