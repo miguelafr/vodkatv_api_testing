@@ -59,12 +59,12 @@ command(S) ->
        {call, ?MODULE, delete_room, [gen_room_ids(S)]},
        {call, ?MODULE, create_device, [gen_physical_id(S), gen_device_class(),
                                        gen_room_id(S), gen_description()]},
-       {call, ?MODULE, find_devices, [gen_start_index(), gen_count()]},
+       {call, ?MODULE, find_devices, [gen_start_index(), gen_count(), gen_devices_query()]},
        {call, ?MODULE, find_devices_by_room, [gen_room_id(S)]},
        {call, ?MODULE, find_device_by_id, [gen_device_id(S)]},
        {call, ?MODULE, update_device, [gen_device_id(S), gen_physical_id(S),
-				       gen_device_class(), gen_room_id(S),
-				       gen_description()]},
+       				       gen_device_class(), gen_room_id(S),
+       				       gen_description()]},
        {call, ?MODULE, delete_device, [gen_device_ids(S)]}
       ]).
 
@@ -160,27 +160,31 @@ postcondition(S, {call, ?MODULE, create_device,
                 andalso Result#createDeviceResponse.description == Description
     end;
 
-postcondition(S, {call, ?MODULE, find_devices, [StartIndex, _Count]},
- 	      Result) when StartIndex > length(S#state.devices) ->
-    length(Result#findDevicesResponse.devices) == 0
-	andalso Result#findDevicesResponse.existsMore == "false"
-	andalso list_to_integer(Result#findDevicesResponse.countTotal) == length(S#state.devices);
-postcondition(S, {call, ?MODULE, find_devices, [StartIndex, Count]},
+postcondition(S, {call, ?MODULE, find_devices, [StartIndex, Count, Query]},
  	      Result) ->
-    length(Result#findDevicesResponse.devices) ==
-	min(Count, length(S#state.devices) - StartIndex + 1)
-	andalso if
-		    (Count >= length(S#state.devices) - StartIndex + 1) ->
-			Result#findDevicesResponse.existsMore == "false";
-		    true ->
-			Result#findDevicesResponse.existsMore == "true"
-		end
-	andalso list_to_integer(Result#findDevicesResponse.countTotal) == length(S#state.devices)
-	andalso
-	lists:all(
-	  fun(Device) ->
-		  lists:member(Device, S#state.devices)
-	  end, Result#findDevicesResponse.devices);
+    FilteredDevices = filter_devices(S#state.devices, Query),
+    if
+	 (StartIndex > length(FilteredDevices)) ->
+	    length(Result#findDevicesResponse.devices) == 0
+		andalso Result#findDevicesResponse.existsMore == "false"
+		andalso list_to_integer(Result#findDevicesResponse.countTotal) ==
+		length(FilteredDevices);
+	true ->
+	    length(Result#findDevicesResponse.devices) ==
+		min(Count, length(FilteredDevices) - StartIndex + 1)
+		andalso if
+			    (Count >= length(FilteredDevices) - StartIndex + 1) ->
+				Result#findDevicesResponse.existsMore == "false";
+			    true ->
+				Result#findDevicesResponse.existsMore == "true"
+			end
+		andalso list_to_integer(Result#findDevicesResponse.countTotal) == length(FilteredDevices)
+		andalso
+		lists:all(
+		  fun(Device) ->
+			  lists:member(Device, S#state.devices)
+		  end, Result#findDevicesResponse.devices)
+    end;
 
 postcondition(S, {call, ?MODULE, find_devices_by_room, [RoomId]}, Result)->
     lists:all(
@@ -345,7 +349,7 @@ next_state(S, R, {call, ?MODULE, create_device,
              }
     end;
 
-next_state(S, _R, {call, ?MODULE, find_devices, [_StartIndex, _Count]})->
+next_state(S, _R, {call, ?MODULE, find_devices, [_StartIndex, _Count, _Query]})->
     S;
 
 next_state(S, _R, {call, ?MODULE, find_devices_by_room, [_RoomId]})->
@@ -476,6 +480,9 @@ gen_device_class()->
 gen_description() ->
     gen_string().
 
+gen_devices_query()->
+    gen_undefined_or_value(fun gen_string/0).
+
 gen_start_index()->
     ?SUCHTHAT(I, nat(), I > 0).
 
@@ -531,6 +538,33 @@ search_device_by_physical_id(PhysicalId, Devices) ->
                 fun(Id, Device) -> Device#device.physicalId == Id end) of
         {value, Device} -> Device;
         false -> throw(device_by_physical_id_not_found)
+    end.
+
+filter_devices(Devices, undefined)->
+    Devices;
+filter_devices(Devices, "")->
+    Devices;
+filter_devices([], _Query)->
+    [];
+filter_devices([Device | Devices], Query) ->
+    Match = lists:any(
+      fun(Field)->
+	case re:run(string:to_lower(Field),
+		    string:to_lower(Query)) of
+	    nomatch ->
+		false;
+	    _ ->
+		true
+	end
+      end,
+      [Device#device.physicalId,
+       Device#device.roomId,
+       Device#device.description]),
+    case Match of
+	true ->
+	    [Device | filter_devices(Devices, Query)];
+	false ->
+	    filter_devices(Devices, Query)
     end.
 
 %%---------------------------------------------------------------
@@ -620,8 +654,8 @@ create_device(PhysicalId, DeviceClass, RoomId, Description) ->
         Result -> {Result#createDeviceResponse.deviceId, Result}
     end.
 
-find_devices(StartIndex, Count) ->
-    sut_result(?SUT:find_devices(StartIndex, Count)).
+find_devices(StartIndex, Count, Query) ->
+    sut_result(?SUT:find_devices(StartIndex, Count, Query)).
 
 find_devices_by_room(RoomId) ->
     sut_result(?SUT:find_devices_by_room(RoomId)).
