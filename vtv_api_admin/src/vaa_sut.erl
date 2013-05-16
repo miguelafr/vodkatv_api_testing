@@ -6,7 +6,7 @@
 
 %% SUT API
 -export([create_room/2, find_all_rooms/0, delete_room/1,
-	 create_device/4, find_devices/3, find_devices_by_room/1,
+	 create_device/4, find_devices/5, find_devices_by_room/1,
 	 find_device_by_id/1, update_device/5, delete_device/1]).
 
 %%---------------------------------------------------------------
@@ -46,8 +46,8 @@ create_device(PhysicalId, DeviceClass, RoomId, Description) ->
 			 create_device_response(Data)
 		 end).
 
-find_devices(StartIndex, Count, Query) ->
-    GetParams = find_devices_params(StartIndex, Count, Query),
+find_devices(StartIndex, Count, SortBy, Order, Query) ->
+    GetParams = find_devices_params(StartIndex, Count, SortBy, Order, Query),
     Url = add_get_params(?BASE_URL ++ "configuration/FindDevices.do",
 			 GetParams),
     http_request(get, Url,
@@ -174,9 +174,10 @@ create_device_response(Data) ->
        errors = errors_response(Data)
       }.
 
-find_devices_params(StartIndex, Count, Query) ->
+find_devices_params(StartIndex, Count, SortBy, Order, Query) ->
     generate_get_params(
       [{"startIndex", StartIndex}, {"count", Count},
+       {"sortBy", SortBy}, {"order", Order},
        {"query", Query}]).
 
 find_devices_response(Data) ->

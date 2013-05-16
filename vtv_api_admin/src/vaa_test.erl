@@ -59,7 +59,9 @@ command(S) ->
        {call, ?MODULE, delete_room, [gen_room_ids(S)]},
        {call, ?MODULE, create_device, [gen_physical_id(S), gen_device_class(),
                                        gen_room_id(S), gen_description()]},
-       {call, ?MODULE, find_devices, [gen_start_index(), gen_count(), gen_devices_query()]},
+       {call, ?MODULE, find_devices, [gen_start_index(), gen_count(),
+				      gen_devices_sort_by(), gen_order(),
+				      gen_devices_query()]},
        {call, ?MODULE, find_devices_by_room, [gen_room_id(S)]},
        {call, ?MODULE, find_device_by_id, [gen_device_id(S)]},
        {call, ?MODULE, update_device, [gen_device_id(S), gen_physical_id(S),
@@ -160,7 +162,7 @@ postcondition(S, {call, ?MODULE, create_device,
                 andalso Result#createDeviceResponse.description == Description
     end;
 
-postcondition(S, {call, ?MODULE, find_devices, [StartIndex, Count, Query]},
+postcondition(S, {call, ?MODULE, find_devices, [StartIndex, Count, SortBy, Order, Query]},
  	      Result) ->
     FilteredDevices = filter_devices(S#state.devices, Query),
     if
@@ -184,6 +186,23 @@ postcondition(S, {call, ?MODULE, find_devices, [StartIndex, Count, Query]},
 		  fun(Device) ->
 			  lists:member(Device, S#state.devices)
 		  end, Result#findDevicesResponse.devices)
+		andalso
+		case SortBy of
+		    "" ->
+		        true;
+		    undefined ->
+			true;
+		    "physicalId" ->
+			check_order(
+			  fun(D1, D2) ->
+				  D1#device.physicalId =< D2#device.physicalId
+			  end, Result#findDevicesResponse.devices, Order);
+		    "description" ->
+			check_order(
+			  fun(D1, D2) ->
+				  D1#device.description =< D2#device.description
+			  end, Result#findDevicesResponse.devices, Order)
+		end
     end;
 
 postcondition(S, {call, ?MODULE, find_devices_by_room, [RoomId]}, Result)->
@@ -349,7 +368,8 @@ next_state(S, R, {call, ?MODULE, create_device,
              }
     end;
 
-next_state(S, _R, {call, ?MODULE, find_devices, [_StartIndex, _Count, _Query]})->
+next_state(S, _R, {call, ?MODULE, find_devices,
+		   [_StartIndex, _Count, _SortBy, _Order, _Query]})->
     S;
 
 next_state(S, _R, {call, ?MODULE, find_devices_by_room, [_RoomId]})->
@@ -426,6 +446,13 @@ gen_mac()->
 	  gen_char(), gen_char()},
 	 [A, B, $:, C, D, $:, E, F, $:, G, H, $:, I, J, $:, L, M]).
 
+gen_order()->
+    gen_undefined_or_value(
+      fun() ->
+	      elements(["ascending", "descending"])
+      end).
+
+
 gen_room_id(S)->
     gen_new_or_in_use(
       fun() -> gen_string() end,
@@ -479,6 +506,12 @@ gen_device_class()->
 
 gen_description() ->
     gen_string().
+
+gen_devices_sort_by() ->
+    gen_undefined_or_value(
+      fun() ->
+	      elements(["physicalId", "description"])
+      end).
 
 gen_devices_query()->
     gen_undefined_or_value(fun gen_string/0).
@@ -620,6 +653,18 @@ search(Id, [X | Xs], Eq) ->
 	    search(Id, Xs, Eq)
     end.
 
+check_order(_F, [], _Order) ->
+    true;
+check_order(_F, [_A], _Order) ->
+    true;
+check_order(F, [A, B], "ascending")->
+    F(A, B);
+check_order(F, [A, B], "descending") ->
+    F(B, A);
+check_order(F, [A, B| C], Order)->
+    check_order(F, [A, B], Order) andalso
+	check_order(F, [B | C], Order).
+
 sut_result({ok, Result}) ->
     Result;
 sut_result({error, Reason}) ->
@@ -654,8 +699,8 @@ create_device(PhysicalId, DeviceClass, RoomId, Description) ->
         Result -> {Result#createDeviceResponse.deviceId, Result}
     end.
 
-find_devices(StartIndex, Count, Query) ->
-    sut_result(?SUT:find_devices(StartIndex, Count, Query)).
+find_devices(StartIndex, Count, SortBy, Order, Query) ->
+    sut_result(?SUT:find_devices(StartIndex, Count, SortBy, Order, Query)).
 
 find_devices_by_room(RoomId) ->
     sut_result(?SUT:find_devices_by_room(RoomId)).
