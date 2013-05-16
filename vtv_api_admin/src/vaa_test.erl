@@ -568,7 +568,9 @@ search_device(DeviceId, Devices) ->
 -spec search_device_by_physical_id(string(), list(#device{})) -> #device{}.
 search_device_by_physical_id(PhysicalId, Devices) ->
     case search(PhysicalId, Devices,
-                fun(Id, Device) -> Device#device.physicalId == Id end) of
+                fun(Id, Device) ->
+			string:to_lower(Device#device.physicalId) == string:to_lower(Id)
+		end) of
         {value, Device} -> Device;
         false -> throw(device_by_physical_id_not_found)
     end.
