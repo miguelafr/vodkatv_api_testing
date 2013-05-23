@@ -38,7 +38,7 @@
         </xsd:complexType>
     </xsd:element>
 
-    <xsd:element name="findAllRoomsResponse">
+    <xsd:element name="findAllRoomResponse">
         <xsd:annotation>
             <xsd:documentation>
             Response of operation FindAllRooms.
