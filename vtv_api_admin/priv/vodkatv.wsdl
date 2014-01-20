@@ -36,7 +36,7 @@
             </wsdl:documentation>
 
             <wsdl:input element="msg:createRoomParams"/>
-            <wsdl:output element="msg:room"/>
+            <wsdl:output element="msg:createRoomResponse"/>
         </wsdl:operation>
 
         <wsdl:operation name="FindAllRooms"
@@ -62,7 +62,7 @@
             </wsdl:documentation>
 
             <wsdl:input element="msg:deleteRoomParams"/>
-            <wsdl:output element="msg:rooms"/>
+            <wsdl:output element="msg:deleteRoomResponse"/>
         </wsdl:operation>
 
         <!-- Device -->
@@ -76,7 +76,7 @@
             </wsdl:documentation>
 
             <wsdl:input element="msg:createDeviceParams"/>
-            <wsdl:output element="msg:device"/>
+            <wsdl:output element="msg:createDeviceResponse"/>
         </wsdl:operation>
 
         <wsdl:operation name="FindDeviceById"
@@ -89,7 +89,7 @@
             </wsdl:documentation>
 
             <wsdl:input element="msg:findDeviceByIdParams"/>
-            <wsdl:output element="msg:device"/>
+            <wsdl:output element="msg:findDeviceByIdResponse"/>
         </wsdl:operation>
 
         <wsdl:operation name="FindDevices"
@@ -102,7 +102,7 @@
             </wsdl:documentation>
 
             <wsdl:input element="msg:findDevicesParams"/>
-            <wsdl:output element="msg:devices"/>
+            <wsdl:output element="msg:findDevicesResponse"/>
         </wsdl:operation>
 
         <wsdl:operation name="FindDevicesByRoom"
@@ -115,7 +115,7 @@
             </wsdl:documentation>
 
             <wsdl:input element="msg:findDevicesByRoomParams"/>
-            <wsdl:output element="msg:devices"/>
+            <wsdl:output element="msg:findDevicesByRoomResponse"/>
         </wsdl:operation>
 
         <wsdl:operation name="FindDevicesByTagId"
@@ -128,7 +128,7 @@
             </wsdl:documentation>
 
             <wsdl:input element="msg:findDevicesByTagIdParams"/>
-            <wsdl:output element="msg:devices"/>
+            <wsdl:output element="msg:findDevicesByTagIdResponse"/>
         </wsdl:operation>
 
         <wsdl:operation name="UpdateDevice"
@@ -141,7 +141,7 @@
             </wsdl:documentation>
 
             <wsdl:input element="msg:updateDeviceParams"/>
-            <wsdl:output element="msg:device"/>
+            <wsdl:output element="msg:updateDeviceResponse"/>
         </wsdl:operation>
 
         <wsdl:operation name="DeleteDevice"
@@ -154,7 +154,7 @@
             </wsdl:documentation>
 
             <wsdl:input element="msg:deleteDeviceParams"/>
-            <wsdl:output element="msg:devices"/>
+            <wsdl:output element="msg:deleteDeviceResponse"/>
         </wsdl:operation>
 
         <!-- DeviceClasses -->
@@ -1312,11 +1312,11 @@
         <wsdl:operation ref="tns:UpdateVideoServerStatus" whttp:method="POST"
                 whttp:location="external/admin/configuration/UpdateVideoServerStatus.do"/>
 
-        <wsdl:operation ref="tns:EnableVideoServer" whttp:method="GET"
-              whttp:location="external/admin/configuration/EnableVideoServer.do"/>
+		<wsdl:operation ref="tns:EnableVideoServer" whttp:method="GET"
+		      whttp:location="external/admin/configuration/EnableVideoServer.do"/>
 
-        <wsdl:operation ref="tns:DisableVideoServer" whttp:method="GET"
-              whttp:location="external/admin/configuration/DisableVideoServer.do"/>
+		<wsdl:operation ref="tns:DisableVideoServer" whttp:method="GET"
+		      whttp:location="external/admin/configuration/DisableVideoServer.do"/>
 
         <wsdl:operation ref="tns:CreateVideoServerStatus" whttp:method="POST"
                 whttp:location="external/admin/configuration/CreateVideoServerStatus.do"/>

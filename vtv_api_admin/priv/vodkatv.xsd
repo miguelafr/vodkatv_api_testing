@@ -133,10 +133,10 @@
         </xsd:annotation>
         <xsd:complexType>
             <xsd:sequence>
-                <xsd:element name="id" type="xsd:integer" />
-                <xsd:element name="physicalId" type="xsd:string" />
+                <xsd:element name="id" type="xsd:integer" minOccurs="0" maxOccurs="1" />
+                <xsd:element name="physicalId" type="xsd:string" minOccurs="0" maxOccurs="1" />
                 <xsd:element name="deviceClass" type="xsd:string" minOccurs="0" maxOccurs="1" />
-                <xsd:element name="roomId" type="xsd:string" />
+                <xsd:element name="roomId" type="xsd:string" minOccurs="0" maxOccurs="1" />
                 <xsd:element name="description" type="xsd:string" minOccurs="0" maxOccurs="1" />
                 <xsd:element name="tag" type="tns:tagNode" minOccurs="0" maxOccurs="1" />
             </xsd:sequence>
@@ -2517,3 +2517,4 @@
     </xsd:complexType>
 
 </xsd:schema>
+
