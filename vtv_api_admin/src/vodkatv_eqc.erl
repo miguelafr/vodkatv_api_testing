@@ -55,6 +55,7 @@ initial_state()->
 command(S) ->
     oneof(
       [{call, ?MODULE, create_room, [gen_room_id(S), gen_description()]},
+       {call, ?MODULE, find_room_by_id, [gen_room_id(S)]},
        {call, ?MODULE, find_all_rooms, []},
        {call, ?MODULE, delete_room, [gen_room_ids(S)]},
 
@@ -95,6 +96,19 @@ postcondition(S, {call, ?MODULE, create_room, [RoomId, Description]},
     catch room_not_found ->
             Result#room.roomId == RoomId
                 andalso Result#room.description == get_description(Description)
+    end;
+
+postcondition(_S, {call, ?MODULE, find_room_by_id, [""]},
+            Result)->
+    check_simple_errors(Result#room.errors, "required", "roomId", "");
+postcondition(S, {call, ?MODULE, find_room_by_id, [RoomId]}, Result)->
+    try
+        Room = search_room(RoomId, S#state.rooms),
+        Result#room.roomId == RoomId
+                andalso Result#room.description == get_description(Room#roomType.description)
+    catch room_not_found ->
+        check_simple_errors(Result#room.errors, "not_found",
+                            "roomId", RoomId)
     end;
 
 postcondition(S, {call, ?MODULE, find_all_rooms, []}, Result)->
@@ -267,22 +281,16 @@ postcondition(S, {call, ?MODULE, update_device,
             Result)->
     try
         _Room = search_room(RoomId, S#state.rooms),
-        case DeviceId of
-            undefined ->
-                check_simple_errors(Result#device.errors, "not_found",
-                                    "deviceId", "0");
-            _ ->
-                _Device = search_device(DeviceId, S#state.devices),
-                DevicePhysicalId =
-                    search_device_by_physical_id(PhysicalId, S#state.devices),
-                case DevicePhysicalId#deviceType.id /= DeviceId of
-                    true ->
-                        check_simple_errors(Result#device.errors,
-                                            "duplicated", "physicalId", PhysicalId);
-                    false ->
-                        %% It was really found, but it is the same case
-                        throw(device_by_physical_id_not_found)
-                end
+        _Device = search_device(DeviceId, S#state.devices),
+        DevicePhysicalId =
+            search_device_by_physical_id(PhysicalId, S#state.devices),
+        case DevicePhysicalId#deviceType.id /= DeviceId of
+            true ->
+                check_simple_errors(Result#device.errors,
+                                    "duplicated", "physicalId", PhysicalId);
+            false ->
+                %% It was really found, but it is the same case
+                throw(device_by_physical_id_not_found)
         end
     catch room_not_found ->
             check_simple_errors(Result#device.errors,
@@ -339,6 +347,9 @@ next_state(S, _R, {call, ?MODULE, create_room, [RoomId, Description]})->
               rooms = [NewRoom |  S#state.rooms]
              }
     end;
+
+next_state(S, _R, {call, ?MODULE, find_room_by_id, [_RoomId]})->
+    S;
 
 next_state(S, _R, {call, ?MODULE, find_all_rooms, []})->
     S;
@@ -492,7 +503,7 @@ gen_device_id(S)->
       fun() ->
         gen_undefined_or_value(
         fun() ->
-            int() %?LET(X, int(), integer_to_list(X))
+            nat()
         end)
       end,
       S#state.devices,
@@ -734,6 +745,9 @@ delete_all_rooms()->
 %%-----------------------------------------------------------------------------
 create_room(RoomId, Description)->
     sut_result(?SUT:create_room(RoomId, Description, undefined)).
+
+find_room_by_id(RoomId) ->
+    sut_result(?SUT:find_room_by_id(RoomId)).
 
 find_all_rooms() ->
     sut_result(?SUT:find_all_rooms()).
