@@ -24,6 +24,9 @@
 %% Prop
 %%===============================================================
 prop_state_machine() ->
+    error_logger:tty(false),
+    inets:start(),
+    vodkatv_sut:start(),
     ?SETUP(
        fun setup/0,
        ?FORALL(
@@ -32,7 +35,12 @@ prop_state_machine() ->
             1000,
             begin
                 setup(),
+                A = now(),
                 {H, S, Res} = run_commands(?MODULE, Cmds),
+                B = now(),
+                io:format("~n> ~p requests in ~p ms. (~p requests per second)",
+                    [length(Cmds), timer:now_diff(B,A)/1000,
+                     (length(Cmds) / (timer:now_diff(B,A)/1000000))]),
                 teardown(),
                 pretty_commands(?MODULE, Cmds, {H,S,Res}, Res==ok)
             end))).
@@ -54,22 +62,21 @@ initial_state()->
 %%---------------------------------------------------------------
 command(S) ->
     oneof(
-      [{call, ?MODULE, create_room, [gen_room_id(S), gen_description()]},
-       {call, ?MODULE, find_room_by_id, [gen_room_id(S)]},
-       {call, ?MODULE, find_all_rooms, []},
-       {call, ?MODULE, delete_room, [gen_room_ids(S)]},
+      [{call, ?MODULE, create_room, [gen_room_id(S), gen_description()]}%,
+       %{call, ?MODULE, find_all_rooms, []},
+       %{call, ?MODULE, delete_room, [gen_room_ids(S)]},
 
-       {call, ?MODULE, create_device, [gen_physical_id(S), gen_device_class(),
-                                       gen_room_id(S), gen_description()]},
-       {call, ?MODULE, find_devices, [gen_start_index(S#state.devices), gen_count(),
-	   			      gen_devices_sort_by(), gen_order(),
-	   			      gen_devices_query()]},
-       {call, ?MODULE, find_devices_by_room, [gen_room_id(S)]},
-       {call, ?MODULE, find_device_by_id, [gen_device_id(S)]},
-       {call, ?MODULE, update_device, [gen_device_id(S), gen_physical_id(S),
-       				       gen_device_class(), gen_room_id(S),
-       				       gen_description()]},
-       {call, ?MODULE, delete_device, [gen_device_ids(S)]}
+       %{call, ?MODULE, create_device, [gen_physical_id(S), gen_device_class(),
+       %                                gen_room_id(S), gen_description()]},
+       %{call, ?MODULE, find_devices, [gen_start_index(S#state.devices), gen_count(),
+	   %			      gen_devices_sort_by(), gen_order(),
+	   %			      gen_devices_query()]},
+       %{call, ?MODULE, find_devices_by_room, [gen_room_id(S)]},
+       %{call, ?MODULE, find_device_by_id, [gen_device_id(S)]},
+       %{call, ?MODULE, update_device, [gen_device_id(S), gen_physical_id(S),
+       %				       gen_device_class(), gen_room_id(S),
+       %				       gen_description()]},
+       %{call, ?MODULE, delete_device, [gen_device_ids(S)]}
       ]).
 
 %%---------------------------------------------------------------
@@ -96,19 +103,6 @@ postcondition(S, {call, ?MODULE, create_room, [RoomId, Description]},
     catch room_not_found ->
             Result#room.roomId == RoomId
                 andalso Result#room.description == get_description(Description)
-    end;
-
-postcondition(_S, {call, ?MODULE, find_room_by_id, [""]},
-            Result)->
-    check_simple_errors(Result#room.errors, "required", "roomId", "");
-postcondition(S, {call, ?MODULE, find_room_by_id, [RoomId]}, Result)->
-    try
-        Room = search_room(RoomId, S#state.rooms),
-        Result#room.roomId == RoomId
-                andalso Result#room.description == get_description(Room#roomType.description)
-    catch room_not_found ->
-        check_simple_errors(Result#room.errors, "not_found",
-                            "roomId", RoomId)
     end;
 
 postcondition(S, {call, ?MODULE, find_all_rooms, []}, Result)->
@@ -348,9 +342,6 @@ next_state(S, _R, {call, ?MODULE, create_room, [RoomId, Description]})->
              }
     end;
 
-next_state(S, _R, {call, ?MODULE, find_room_by_id, [_RoomId]})->
-    S;
-
 next_state(S, _R, {call, ?MODULE, find_all_rooms, []})->
     S;
 
@@ -462,7 +453,7 @@ next_state(S, _R, _C)->
 %% Generators
 %%---------------------------------------------------------------
 gen_char()->
-    elements([choose($a, $z), choose($A, $Z), choose($0, $9)]).
+    oneof([choose($a, $z), choose($A, $Z), choose($0, $9)]).
 
 gen_string() ->
     list(gen_char()).
@@ -688,13 +679,12 @@ check_simple_error(_Error, _ErrorCode, _ParamName, _ParamValue) ->
 %% Utilities
 %%---------------------------------------------------------------
 setup()->
-    error_logger:tty(false),
-    inets:start(),
     delete_all_rooms(),
     fun teardown/0.
 
 teardown()->
-    inets:stop().
+    %inets:stop().
+    ok.
 
 search(_Id, [], _Eq)->
     false;
@@ -745,9 +735,6 @@ delete_all_rooms()->
 %%-----------------------------------------------------------------------------
 create_room(RoomId, Description)->
     sut_result(?SUT:create_room(RoomId, Description, undefined)).
-
-find_room_by_id(RoomId) ->
-    sut_result(?SUT:find_room_by_id(RoomId)).
 
 find_all_rooms() ->
     sut_result(?SUT:find_all_rooms()).
