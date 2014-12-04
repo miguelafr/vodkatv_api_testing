@@ -62,21 +62,21 @@ initial_state()->
 %%---------------------------------------------------------------
 command(S) ->
     oneof(
-      [{call, ?MODULE, create_room, [gen_room_id(S), gen_description()]}%,
-       %{call, ?MODULE, find_all_rooms, []},
-       %{call, ?MODULE, delete_room, [gen_room_ids(S)]},
+      [{call, ?MODULE, create_room, [gen_room_id(S), gen_description()]},
+       {call, ?MODULE, find_all_rooms, []},
+       {call, ?MODULE, delete_room, [gen_room_ids(S)]},
 
-       %{call, ?MODULE, create_device, [gen_physical_id(S), gen_device_class(),
-       %                                gen_room_id(S), gen_description()]},
-       %{call, ?MODULE, find_devices, [gen_start_index(S#state.devices), gen_count(),
-	   %			      gen_devices_sort_by(), gen_order(),
-	   %			      gen_devices_query()]},
-       %{call, ?MODULE, find_devices_by_room, [gen_room_id(S)]},
-       %{call, ?MODULE, find_device_by_id, [gen_device_id(S)]},
-       %{call, ?MODULE, update_device, [gen_device_id(S), gen_physical_id(S),
-       %				       gen_device_class(), gen_room_id(S),
-       %				       gen_description()]},
-       %{call, ?MODULE, delete_device, [gen_device_ids(S)]}
+       {call, ?MODULE, create_device, [gen_physical_id(S), gen_device_class(),
+                                       gen_room_id(S), gen_description()]},
+       {call, ?MODULE, find_devices, [gen_start_index(S#state.devices), gen_count(),
+	   			      gen_devices_sort_by(), gen_order(),
+	   			      gen_devices_query()]},
+       {call, ?MODULE, find_devices_by_room, [gen_room_id(S)]},
+       {call, ?MODULE, find_device_by_id, [gen_device_id(S)]},
+       {call, ?MODULE, update_device, [gen_device_id(S), gen_physical_id(S),
+       				       gen_device_class(), gen_room_id(S),
+       				       gen_description()]},
+       {call, ?MODULE, delete_device, [gen_device_ids(S)]}
       ]).
 
 %%---------------------------------------------------------------
