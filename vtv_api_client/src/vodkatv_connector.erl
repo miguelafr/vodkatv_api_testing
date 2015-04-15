@@ -1,39 +1,139 @@
 -module(vodkatv_connector).
 
--export([login/3]).
+-include_lib("xmerl/include/xmerl.hrl").
 
--define(BASE_URL, "http://193.144.63.20:8082/vodkatv/").
+-compile(export_all).
 
-login(AppId, UserId, Password) ->
-    GetParams = generate_get_params([{"appId", AppId}, {"userId", UserId},
+-define(APP_ID, "HJ8n59WO0Jcmr9l0U0FLXYlXaQOyzn").
+-define(BASE_URL, "http://10.121.55.32:8082/vodkatv/").
+-define(HTTP_REQUEST_HEADERS_JSON,
+    [{"user-agent", "Chrome"},
+    {"Accept", "application/json"},
+    {"Content-Type", "application/json"}]).
+
+%%---------------------------------------------------------------
+%% JSON API
+%%---------------------------------------------------------------
+login(UserId, Password) ->
+    GetParams = generate_get_params([{"appId", ?APP_ID}, {"userId", UserId},
         {"password", Password}]),
     Url = add_get_params(?BASE_URL ++ "external/client/core/Login.do", GetParams),
     http_request('GET', Url,
+                get_http_headers_request(),
+                fun(Data) ->
+                    io:format("login(~p, ~p)->~n    ~p~n~n",
+                            [UserId, Password, Data]), 
+                    {R, _, _} = ktj_decode:decode(Data),
+                    kst_erljson:json_to_erl(R)
+                end).
+
+logout(Token) ->
+    Url = ?BASE_URL ++ "external/client/core/Logout.do",
+    http_request('GET', Url,
+                get_http_headers_request(Token),
                 fun(Data) -> 
-                    jiffy:decode(Data)
+                    io:format("logout(~p)->~n    ~p~n~n", [Token, Data]), 
+                    {R, _, _} = ktj_decode:decode(Data),
+                    kst_erljson:json_to_erl(R)
+                end).
+
+find_user_info(Token) ->
+    Url = ?BASE_URL ++ "external/client/core/FindUserInfo.do",
+    http_request('GET', Url,
+                get_http_headers_request(Token),
+                fun(Data) -> 
+                    io:format("find_user_info(~p)->~n    ~p~n~n", [Token, Data]), 
+                    {R, _, _} = ktj_decode:decode(Data),
+                    kst_erljson:json_to_erl(R)
+                end).
+
+register_user(UserName, Password) ->
+    Url = ?BASE_URL ++ "external/client/v2/core/users",
+    User = [{"userSession", [
+            {"guest", [{"name", UserName}]},
+            {"accounts", [[
+                {"access", [
+                    {"loginName", UserName},
+                    {"password", Password}
+                ]}
+            ]]}
+        ]}],
+    Json = ktj_encode:encode(kst_erljson:erl_to_json(User)),
+    http_request('POST', Url,
+                get_http_headers_request(),
+                list_to_binary(Json),
+                fun(Data) -> 
+                    io:format("register_user(~p, ~p)->~n    ~p~n~n",
+                            [UserName, Password, Data]), 
+                    {R, _, _} = ktj_decode:decode(Data),
+                    kst_erljson:json_to_erl(R)
+                end).
+
+%%---------------------------------------------------------------
+%% XML API
+%%---------------------------------------------------------------
+find_all_rooms() ->
+    Url = ?BASE_URL ++ "external/admin/configuration/FindAllRooms.do",
+    http_request('GET', Url, [],
+                fun(Data) -> 
+                    io:format("find_all_rooms()->~n    ~p~n~n", [Data]), 
+                    {RootEl, _Misc} = xmerl_scan:string(Data),
+                    Rooms = RootEl#xmlElement.content,
+                    lists:map(fun(Room) ->
+                        [[RoomId]] = [RoomAttr#xmlElement.content ||
+                            RoomAttr <- Room#xmlElement.content,
+                            RoomAttr#xmlElement.name == roomId],
+                        [{"roomId", RoomId#xmlText.value}]
+                    end, Rooms)
+                end).
+
+delete_room_device_session(RoomId) ->
+    GetParams = generate_get_params([{"roomId", RoomId}]),
+    Url = add_get_params(?BASE_URL ++
+        "external/admin/configuration/DeleteRoomDeviceSession.do", GetParams),
+    http_request('GET', Url, [],
+                fun(Data) -> 
+                    io:format("delete_room_device_session(~p)->~n    ~p~n~n",
+                            [RoomId, Data]), 
+                    ok
                 end).
 
 %%---------------------------------------------------------------
 %% Utilities
 %%---------------------------------------------------------------
-http_request(Method, Url, FunParse)->
-    http_request(Method, Url, "", FunParse).
+get_http_headers_request() ->
+    ?HTTP_REQUEST_HEADERS_JSON.
 
-http_request(Method, Url, Body, FunParse)->
-    case do_http_request(Method, Url, Body) of
+get_http_headers_request(Token) ->
+    get_http_headers_request() ++ [{"Cookie", "t=" ++ Token}].
+
+http_request(Method, Url, Headers, FunParse)->
+    http_request(Method, Url, Headers, "", FunParse).
+
+http_request(Method, Url, Headers, Body, FunParse)->
+    case do_http_request(Method, Url, Headers, Body) of
    	{ok, {{_Protocol, 200, _Msg}, _Headers, Response}} ->
 		           {ok, FunParse(Response)};
-    	{ok, {{_Protocol, Code, Msg}, _Headers, _Response}} ->
-  	            {error, {Code, Msg}};
+    	{ok, {{_Protocol, Code, Msg}, _Headers, Response}} ->
+  	            {error, {Code, Msg, FunParse(Response)}};
     	{error, Reason} ->
 	            {error, Reason}
     end.
 
-do_http_request('GET', Url, _Body)->
-    httpc:request(get, {Url, []}, [], []);
+do_http_request('GET', Url, Headers, _Body)->
+    httpc_request(get, {Url, Headers}, [], []);
 
-do_http_request('POST', Url, Body)->
-    httpc:request(post, {Url, [], "application/json", Body}, [], []).
+do_http_request('POST', Url, Headers, Body)->
+    httpc_request(post, {Url, Headers, "application/json", Body}, [], []).
+
+httpc_request(Method, Request, HTTPOptions, Options) ->
+    case httpc:request(Method, Request, HTTPOptions, Options) of
+        {error,socket_closed_remotely} ->
+            io:format("Warning: socket_closed_remotely error. Retrying request...~n"),
+            httpc_request(Method, Request, HTTPOptions, Options);
+        R ->
+            R
+    end.
 
 generate_get_params([]) ->
     "";
@@ -64,3 +164,5 @@ add_get_params(Url, "") ->
     Url;
 add_get_params(Url, Params) ->
     Url ++ "?" ++ Params.
+
+
