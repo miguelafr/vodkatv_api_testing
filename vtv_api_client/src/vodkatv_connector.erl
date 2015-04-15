@@ -5,7 +5,7 @@
 -compile(export_all).
 
 -define(APP_ID, "HJ8n59WO0Jcmr9l0U0FLXYlXaQOyzn").
--define(BASE_URL, "http://10.121.55.32:8082/vodkatv/").
+-define(BASE_URL, "http://193.144.63.20:8083/vodkatv/").
 -define(HTTP_REQUEST_HEADERS_JSON,
     [{"user-agent", "Chrome"},
     {"Accept", "application/json"},
