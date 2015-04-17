@@ -350,7 +350,8 @@ tag([{Name, false} | _MoreTags]) ->
 % Setup/teardown
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 setup() ->
-    initialize_vodkatv().
+    initialize_vodkatv(),
+    fun teardown/0.
 
 teardown() ->
     initialize_vodkatv().
