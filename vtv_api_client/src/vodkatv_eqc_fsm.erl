@@ -44,8 +44,8 @@ logged() ->
 not_logged() ->
     [{logged, login},
      %{not_logged, login_error},
-     {not_logged, register_user}]. %,
-     %{not_logged, register_user_duplicated}].%,
+     {not_logged, register_user},
+     {not_logged, register_user_duplicated}].%,
      %{waiting_for_activation, register_user},
      %{password_recovery, activate_password_recovery}].
 
@@ -380,8 +380,5 @@ prop() ->
             (aggregate(command_names(Cmds), Res == ok)))
         end)).
 
-    %?FORALL(Cmds,commands(?MODULE),
-  	%    begin
-    %  		{H,S,Res} = run_commands(?MODULE,Cmds),
-    %  		Res == ok
-  	%    end).
+start()->
+    eqc:quickcheck(prop()).
