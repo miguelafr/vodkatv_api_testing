@@ -150,11 +150,10 @@ register_user_next(_From, _To, S, _V, [UserName, Password]) ->
     }.
 
 register_user_args(_From, _To, S) ->
-    ?LET(N, nat(),
-        ?SUCHTHAT([NewUserName, NewPassword],
-            [?EQC_PREFFIX ++ integer_to_list(N), ?EQC_PREFFIX ++ integer_to_list(N)],
-            not lists:member([NewUserName, NewPassword],
-                S#state.valid_users ++ S#state.not_activated_users))).
+    ExistingUsers = S#state.valid_users ++ S#state.not_activated_users,
+    ?LET(N,
+        ?SUCHTHAT(N, nat(), not lists:member(user_id(N), ExistingUsers)),
+        user_id(N)).
 
 register_user_post(_From, _To, _S, [UserName, _Password],
         {ok, Result}) ->
@@ -165,6 +164,9 @@ register_user_post(_From, _To, _S, [UserName, _Password],
     tag([{{register_user, UserId, UserName}, (UserId == UserName)}]);
 register_user_post(_From, _To, _S, _Args, _Result) ->
     tag([{register_user, false}]).
+
+user_id(N)->
+    [?EQC_PREFFIX ++ integer_to_list(N), ?EQC_PREFFIX ++ integer_to_list(N)].
  
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Register user duplicated
@@ -372,6 +374,7 @@ prop() ->
     ?SETUP(fun setup/0,
         ?FORALL(Cmds, (commands(?MODULE)),
         begin
+            initialize_vodkatv(),
             {H, S, Res} = run_commands(?MODULE, Cmds),
             ?WHENFAIL((io:format("H: ~p ~n S: ~p ~n Res: ~p ~n", [H, S, Res])),
             (aggregate(command_names(Cmds), Res == ok)))
