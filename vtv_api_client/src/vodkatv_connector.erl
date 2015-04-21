@@ -21,8 +21,8 @@ login(UserId, Password) ->
     http_request('GET', Url,
                 get_http_headers_request(),
                 fun(Data) ->
-                    io:format("login(~p, ~p)->~n    ~p~n~n",
-                            [UserId, Password, Data]), 
+                    %io:format("login(~p, ~p)->~n    ~p~n~n",
+                    %        [UserId, Password, Data]), 
                     {R, _, _} = ktj_decode:decode(Data),
                     kst_erljson:json_to_erl(R)
                 end).
@@ -32,7 +32,7 @@ logout(Token) ->
     http_request('GET', Url,
                 get_http_headers_request(Token),
                 fun(Data) -> 
-                    io:format("logout(~p)->~n    ~p~n~n", [Token, Data]), 
+                    %io:format("logout(~p)->~n    ~p~n~n", [Token, Data]), 
                     {R, _, _} = ktj_decode:decode(Data),
                     kst_erljson:json_to_erl(R)
                 end).
@@ -42,7 +42,7 @@ find_user_info(Token) ->
     http_request('GET', Url,
                 get_http_headers_request(Token),
                 fun(Data) -> 
-                    io:format("find_user_info(~p)->~n    ~p~n~n", [Token, Data]), 
+                    %io:format("find_user_info(~p)->~n    ~p~n~n", [Token, Data]), 
                     {R, _, _} = ktj_decode:decode(Data),
                     kst_erljson:json_to_erl(R)
                 end).
@@ -63,8 +63,20 @@ register_user(UserName, Password) ->
                 get_http_headers_request(),
                 list_to_binary(Json),
                 fun(Data) -> 
-                    io:format("register_user(~p, ~p)->~n    ~p~n~n",
-                            [UserName, Password, Data]), 
+                    %io:format("register_user(~p, ~p)->~n    ~p~n~n",
+                    %        [UserName, Password, Data]), 
+                    {R, _, _} = ktj_decode:decode(Data),
+                    kst_erljson:json_to_erl(R)
+                end).
+
+activate_user(ActivationCode) ->
+    Url = ?BASE_URL ++ "external/client/v2/core/users/" ++ ActivationCode ++
+            "/activation?authenticate=true",
+    http_request('PUT', Url,
+                get_http_headers_request(),
+                fun(Data) -> 
+                    %io:format("activate_user(~p)->~n    ~p~n~n",
+                    %        [ActivationCode, Data]), 
                     {R, _, _} = ktj_decode:decode(Data),
                     kst_erljson:json_to_erl(R)
                 end).
@@ -76,7 +88,7 @@ find_all_rooms() ->
     Url = ?BASE_URL ++ "external/admin/configuration/FindAllRooms.do",
     http_request('GET', Url, [],
                 fun(Data) -> 
-                    io:format("find_all_rooms()->~n    ~p~n~n", [Data]), 
+                    %io:format("find_all_rooms()->~n    ~p~n~n", [Data]), 
                     {RootEl, _Misc} = xmerl_scan:string(Data),
                     Rooms = RootEl#xmlElement.content,
                     lists:map(fun(Room) ->
@@ -93,9 +105,23 @@ delete_room_device_session(RoomId) ->
         "external/admin/configuration/DeleteRoomDeviceSession.do", GetParams),
     http_request('GET', Url, [],
                 fun(Data) -> 
-                    io:format("delete_room_device_session(~p)->~n    ~p~n~n",
-                            [RoomId, Data]), 
+                    %io:format("delete_room_device_session(~p)->~n    ~p~n~n",
+                    %        [RoomId, Data]), 
                     ok
+                end).
+
+get_activation_code(UserId) ->
+    GetParams = generate_get_params([{"userId", UserId}]),
+    Url = add_get_params(?BASE_URL ++
+        "external/admin/accounting/FindActivationCodeByUserId.do", GetParams),
+    http_request('GET', Url, [],
+                fun(Data) -> 
+                    %io:format("get_activation_code(~p)->~n    ~p~n~n",
+                    %        [UserId, Data]), 
+                    {RootEl, _Misc} = xmerl_scan:string(Data),
+                    [AccountRemoteAccess] = RootEl#xmlElement.content,
+                    [ActivationCode] = AccountRemoteAccess#xmlElement.content,
+                    ActivationCode#xmlText.value
                 end).
 
 %%---------------------------------------------------------------
@@ -122,6 +148,9 @@ http_request(Method, Url, Headers, Body, FunParse)->
 
 do_http_request('GET', Url, Headers, _Body)->
     httpc_request(get, {Url, Headers}, [], []);
+
+do_http_request('PUT', Url, Headers, Body)->
+    httpc_request(put, {Url, Headers, "application/json", Body}, [], []);
 
 do_http_request('POST', Url, Headers, Body)->
     httpc_request(post, {Url, Headers, "application/json", Body}, [], []).

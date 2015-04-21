@@ -10,6 +10,7 @@
 -record(state, {
     valid_users,
     not_activated_users,
+    activation_codes,
     current_user_id,
     current_token%,
     %channels,
@@ -23,6 +24,7 @@ initial_state_data() ->
     #state {
         valid_users = [],
         not_activated_users = [],
+        activation_codes = [],
         current_user_id = undefined,
         current_token = undefined %,
         %channels = [],
@@ -33,8 +35,8 @@ initial_state_data() ->
 % States
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 logged() ->
-    [{not_logged, logout}].%,
-     %{logged, find_user_info}]. %,
+    [{not_logged, logout},
+     {logged, find_user_info}]. %,
      %{logged, op},
      %{tv_purchased, purchase_tv},
      %{vod_purchased, purchase_vod},
@@ -43,11 +45,16 @@ logged() ->
 
 not_logged() ->
     [{logged, login},
-     %{not_logged, login_error},
-     {not_logged, register_user},
+     {not_logged, login_error},
+     {waiting_for_activation_code, register_user},
      {not_logged, register_user_duplicated}].%,
-     %{waiting_for_activation, register_user},
      %{password_recovery, activate_password_recovery}].
+
+waiting_for_activation_code() ->
+    [{activation_code_received, get_activation_code}].
+
+activation_code_received() ->
+    [{logged, activate_user}].
 
 %waiting_for_activation()->
 %    [{logged, activate}].
@@ -81,7 +88,7 @@ login(UserId, Password) ->
     end.
 
 login_args(_From, _To, S) ->
-    elements(S#state.valid_users).
+    ?LET({UserId, Password}, elements(S#state.valid_users), [UserId, Password]).
 
 login_next(_From, _To, S, V, [UserId, _Password]) ->
     S#state {
@@ -104,6 +111,12 @@ login_error_args(_From, _To, _S) ->
     elements([["invalid_user1", "invalid_password1"],
             ["invalid_user2", "invalid_password2"],
             ["invalid_user3", "invalid_password3"]]).
+
+login_error_post(_From, _To, _S, _Args, {error, Error}) ->
+    tag([{{login_error, Error}, false}]);
+login_error_post(_From, _To, _S, _Args, {ok, R}) ->
+    tag([{{login_error, R},
+        (proplists:get_value("errors", R) /= undefined)}]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Logout
@@ -139,50 +152,105 @@ find_user_info_post(_From, _To, _S, _Args, _Result) ->
     tag([{find_user_info, false}]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Get activation code
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+get_activation_code(UserId) ->
+    case vodkatv_connector:get_activation_code(UserId) of
+        {ok, R} ->
+            R;
+        Other ->
+            {error, Other}
+    end.
+
+get_activation_code_args(_From, _To, S) ->
+    ?LET({UserId, _Password}, elements(S#state.not_activated_users), [UserId]).
+
+get_activation_code_next(_From, _To, S, V, [UserId]) ->
+    S#state {
+        activation_codes = [{UserId, V} | S#state.activation_codes]
+    }.
+
+get_activation_code_post(_From, _To, _S, _Args, {error, Error}) ->
+    tag([{{activation_code_error, Error}, false}]);
+get_activation_code_post(_From, _To, _S, _Args, R) ->
+    tag([{activation_code_error, (R /= undefined) andalso (R /= "")}]).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Activate user
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+activate_user(ActivationCode) ->
+    case vodkatv_connector:activate_user(ActivationCode) of
+        {ok, R} ->
+            proplists:get_value("token", R);
+        Other ->
+            {error, Other}
+    end.
+
+activate_user_next(_From, _To, S, V, [ActivationCode]) ->
+    {UserId, _ActivationCode} = lists:keyfind(ActivationCode, 2, S#state.activation_codes),
+    {_UserId, Password} = lists:keyfind(UserId, 1, S#state.not_activated_users),
+    S#state {
+        valid_users = [{UserId, Password} | S#state.valid_users],
+        not_activated_users = lists:keydelete(UserId, 1,
+            S#state.activation_codes),
+        activation_codes = lists:keydelete(UserId, 1,
+            S#state.activation_codes),
+        current_user_id = UserId,
+        current_token = V
+    }.
+
+activate_user_args(_From, _To, S) ->
+    ?LET({_UserId, ActivationCode}, elements(S#state.activation_codes),
+        [ActivationCode]).
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Register user
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-register_user(UserName, Password) ->
-    vodkatv_connector:register_user(UserName, Password).
+register_user(UserId, Password) ->
+    vodkatv_connector:register_user(UserId, Password).
 
-register_user_next(_From, _To, S, _V, [UserName, Password]) ->
+register_user_next(_From, _To, S, _V, [UserId, Password]) ->
     S#state {
-        not_activated_users = [[UserName, Password]| S#state.not_activated_users]
+        not_activated_users = [{UserId, Password}| S#state.not_activated_users]
     }.
 
 register_user_args(_From, _To, S) ->
     ExistingUsers = S#state.valid_users ++ S#state.not_activated_users,
     ?LET(N,
         ?SUCHTHAT(N, nat(), not lists:member(user_id(N), ExistingUsers)),
-        user_id(N)).
+        tuple_to_list(user_id(N))).
 
-register_user_post(_From, _To, _S, [UserName, _Password],
+register_user_post(_From, _To, _S, [UserId, _Password],
         {ok, Result}) ->
     UserSession = proplists:get_value("userSession", Result),
     [Account | []] = proplists:get_value("accounts", UserSession),
     Access = proplists:get_value("access", Account),
-    UserId = proplists:get_value("loginName", Access),
-    tag([{{register_user, UserId, UserName}, (UserId == UserName)}]);
+    ReturnedUserId = proplists:get_value("loginName", Access),
+    tag([{{register_user, UserId, ReturnedUserId}, (UserId == ReturnedUserId)}]);
 register_user_post(_From, _To, _S, _Args, _Result) ->
     tag([{register_user, false}]).
 
 user_id(N)->
-    [?EQC_PREFFIX ++ integer_to_list(N), ?EQC_PREFFIX ++ integer_to_list(N)].
+    {?EQC_PREFFIX ++ integer_to_list(N), ?EQC_PREFFIX ++ integer_to_list(N)}.
  
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Register user duplicated
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-register_user_duplicated(UserName, Password) ->
-    vodkatv_connector:register_user(UserName, Password).
+register_user_duplicated(UserId, Password) ->
+    vodkatv_connector:register_user(UserId, Password).
 
 register_user_duplicated_args(_From, _To, S) ->
-    oneof(S#state.valid_users ++ S#state.not_activated_users).
+    ?LET({UserId, Password},
+        elements(S#state.valid_users ++ S#state.not_activated_users),
+        [UserId, Password]).
 
-register_user_duplicated_post(_From, _To, _S, [UserName, _Password],
+register_user_duplicated_post(_From, _To, _S, [UserId, _Password],
         {error, {409, _Msg, Result}}) ->
     [Error | []] = proplists:get_value("errors", Result),
     [ErrorParam | []] = proplists:get_value("params", Error),
-    UserId = proplists:get_value("value", ErrorParam),
-    tag([{register_user_duplicated, (UserId == UserName)}]);
+    ReturnedUserId = proplists:get_value("value", ErrorParam),
+    tag([{register_user_duplicated, (UserId == ReturnedUserId)}]);
 register_user_duplicated_post(_From, _To, _S, _Args, _Result) ->
     tag([{register_user_duplicated, false}]).
 
@@ -382,4 +450,9 @@ prop() ->
         end)).
 
 start()->
-    eqc:quickcheck(prop()).
+    case eqc:quickcheck(prop()) of
+        true ->
+            eqc_fsm:visualize(?MODULE);
+        Error ->
+            Error
+    end.
