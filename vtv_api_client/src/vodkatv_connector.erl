@@ -81,6 +81,31 @@ activate_user(ActivationCode) ->
                     kst_erljson:json_to_erl(R)
                 end).
 
+password_recovery(UserId) ->
+    Url = ?BASE_URL ++ "external/client/v2/core/users/" ++ UserId ++
+            "/passwordrecovery",
+    http_request('PUT', Url,
+                get_http_headers_request(),
+                fun(Data) -> 
+                    %io:format("password_recovery(~p)->~n    ~p~n~n",
+                    %        [UserId, Data]), 
+                    {R, _, _} = ktj_decode:decode(Data),
+                    kst_erljson:json_to_erl(R)
+                end).
+
+change_password_from_code(Code, Password) ->
+    Url = ?BASE_URL ++ "external/client/v2/core/users/" ++ Code ++
+            "/passwordchange",
+    http_request('PUT', Url,
+                get_http_headers_request(),
+                list_to_binary(Password),
+                fun(Data) -> 
+                    %io:format("change_password_from_code(~p, ~p)->~n    ~p~n~n",
+                    %        [Code, Password, Data]), 
+                    {R, _, _} = ktj_decode:decode(Data),
+                    kst_erljson:json_to_erl(R)
+                end).
+
 %%---------------------------------------------------------------
 %% XML API
 %%---------------------------------------------------------------
@@ -117,6 +142,20 @@ get_activation_code(UserId) ->
     http_request('GET', Url, [],
                 fun(Data) -> 
                     %io:format("get_activation_code(~p)->~n    ~p~n~n",
+                    %        [UserId, Data]), 
+                    {RootEl, _Misc} = xmerl_scan:string(Data),
+                    [AccountRemoteAccess] = RootEl#xmlElement.content,
+                    [ActivationCode] = AccountRemoteAccess#xmlElement.content,
+                    ActivationCode#xmlText.value
+                end).
+
+get_password_recovery_code(UserId) ->
+    GetParams = generate_get_params([{"userId", UserId}]),
+    Url = add_get_params(?BASE_URL ++
+        "external/admin/accounting/FindPasswordRecoveryCodeByUserId.do", GetParams),
+    http_request('GET', Url, [],
+                fun(Data) -> 
+                    %io:format("get_password_recovery_code(~p)->~n    ~p~n~n",
                     %        [UserId, Data]), 
                     {RootEl, _Misc} = xmerl_scan:string(Data),
                     [AccountRemoteAccess] = RootEl#xmlElement.content,
