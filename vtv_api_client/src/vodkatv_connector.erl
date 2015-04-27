@@ -21,7 +21,7 @@ login(UserId, Password) ->
     http_request('GET', Url,
                 get_http_headers_request(),
                 fun(Data) ->
-                    %io:format("login(~p, ~p)->~n    ~p~n~n",
+                    %io:format("login(~p, ~p)->~n    ~s~n~n",
                     %        [UserId, Password, Data]), 
                     {R, _, _} = ktj_decode:decode(Data),
                     kst_erljson:json_to_erl(R)
@@ -32,7 +32,7 @@ logout(Token) ->
     http_request('GET', Url,
                 get_http_headers_request(Token),
                 fun(Data) -> 
-                    %io:format("logout(~p)->~n    ~p~n~n", [Token, Data]), 
+                    %io:format("logout(~p)->~n    ~s~n~n", [Token, Data]), 
                     {R, _, _} = ktj_decode:decode(Data),
                     kst_erljson:json_to_erl(R)
                 end).
@@ -42,7 +42,7 @@ find_user_info(Token) ->
     http_request('GET', Url,
                 get_http_headers_request(Token),
                 fun(Data) -> 
-                    %io:format("find_user_info(~p)->~n    ~p~n~n", [Token, Data]), 
+                    %io:format("find_user_info(~p)->~n    ~s~n~n", [Token, Data]), 
                     {R, _, _} = ktj_decode:decode(Data),
                     kst_erljson:json_to_erl(R)
                 end).
@@ -63,7 +63,7 @@ register_user(UserName, Password) ->
                 get_http_headers_request(),
                 list_to_binary(Json),
                 fun(Data) -> 
-                    %io:format("register_user(~p, ~p)->~n    ~p~n~n",
+                    %io:format("register_user(~p, ~p)->~n    ~s~n~n",
                     %        [UserName, Password, Data]), 
                     {R, _, _} = ktj_decode:decode(Data),
                     kst_erljson:json_to_erl(R)
@@ -75,7 +75,7 @@ activate_user(ActivationCode) ->
     http_request('PUT', Url,
                 get_http_headers_request(),
                 fun(Data) -> 
-                    %io:format("activate_user(~p)->~n    ~p~n~n",
+                    %io:format("activate_user(~p)->~n    ~s~n~n",
                     %        [ActivationCode, Data]), 
                     {R, _, _} = ktj_decode:decode(Data),
                     kst_erljson:json_to_erl(R)
@@ -87,7 +87,7 @@ password_recovery(UserId) ->
     http_request('PUT', Url,
                 get_http_headers_request(),
                 fun(Data) -> 
-                    %io:format("password_recovery(~p)->~n    ~p~n~n",
+                    %io:format("password_recovery(~p)->~n    ~s~n~n",
                     %        [UserId, Data]), 
                     {R, _, _} = ktj_decode:decode(Data),
                     kst_erljson:json_to_erl(R)
@@ -100,8 +100,38 @@ change_password_from_code(Code, Password) ->
                 get_http_headers_request(),
                 list_to_binary(Password),
                 fun(Data) -> 
-                    %io:format("change_password_from_code(~p, ~p)->~n    ~p~n~n",
+                    %io:format("change_password_from_code(~p, ~p)->~n    ~s~n~n",
                     %        [Code, Password, Data]), 
+                    {R, _, _} = ktj_decode:decode(Data),
+                    kst_erljson:json_to_erl(R)
+                end).
+
+find_products(Token) ->
+    Url = ?BASE_URL ++ "external/client/plugins/store/FindCatalogue.do",
+    http_request('GET', Url,
+                get_http_headers_request(Token),
+                fun(Data) -> 
+                    %io:format("find_products(~p)->~n    ~s~n~n", [Token, Data]), 
+                    {R, _, _} = ktj_decode:decode(Data),
+                    Result = kst_erljson:json_to_erl(R),
+                    case proplists:get_value("subscriptions", Result) of
+                        undefined ->
+                            Result;
+                        Subscriptions ->
+                            lists:map(fun(Product) ->
+                                proplists:get_value("product", Product)
+                            end, Subscriptions)
+                    end
+                end).
+
+purchase_product(Token, ProductId) ->
+    GetParams = generate_get_params([{"productId", ProductId}]),
+    Url = add_get_params(?BASE_URL ++ "external/client/plugins/store/PurchaseProduct.do",
+            GetParams),
+    http_request('GET', Url,
+                get_http_headers_request(Token),
+                fun(Data) -> 
+                    %io:format("purchase_product(~p, ~p)->~n    ~s~n~n", [Token, ProductId, Data]), 
                     {R, _, _} = ktj_decode:decode(Data),
                     kst_erljson:json_to_erl(R)
                 end).
@@ -113,7 +143,7 @@ find_all_rooms() ->
     Url = ?BASE_URL ++ "external/admin/configuration/FindAllRooms.do",
     http_request('GET', Url, [],
                 fun(Data) -> 
-                    %io:format("find_all_rooms()->~n    ~p~n~n", [Data]), 
+                    %io:format("find_all_rooms()->~n    ~s~n~n", [Data]), 
                     {RootEl, _Misc} = xmerl_scan:string(Data),
                     Rooms = RootEl#xmlElement.content,
                     lists:map(fun(Room) ->
@@ -130,8 +160,19 @@ delete_room_device_session(RoomId) ->
         "external/admin/configuration/DeleteRoomDeviceSession.do", GetParams),
     http_request('GET', Url, [],
                 fun(Data) -> 
-                    %io:format("delete_room_device_session(~p)->~n    ~p~n~n",
+                    %io:format("delete_room_device_session(~p)->~n    ~s~n~n",
                     %        [RoomId, Data]), 
+                    ok
+                end).
+
+delete_purchase(PurchaseId) ->
+    GetParams = generate_get_params([{"purchaseId", PurchaseId}]),
+    Url = add_get_params(?BASE_URL ++
+        "external/admin/business/DeletePurchase.do", GetParams),
+    http_request('GET', Url, [],
+                fun(Data) -> 
+                    %io:format("delete_purchase(~p)->~n    ~s~n~n",
+                    %        [PurchaseId, Data]), 
                     ok
                 end).
 
@@ -141,7 +182,7 @@ get_activation_code(UserId) ->
         "external/admin/accounting/FindActivationCodeByUserId.do", GetParams),
     http_request('GET', Url, [],
                 fun(Data) -> 
-                    %io:format("get_activation_code(~p)->~n    ~p~n~n",
+                    %io:format("get_activation_code(~p)->~n    ~s~n~n",
                     %        [UserId, Data]), 
                     {RootEl, _Misc} = xmerl_scan:string(Data),
                     [AccountRemoteAccess] = RootEl#xmlElement.content,
@@ -155,7 +196,7 @@ get_password_recovery_code(UserId) ->
         "external/admin/accounting/FindPasswordRecoveryCodeByUserId.do", GetParams),
     http_request('GET', Url, [],
                 fun(Data) -> 
-                    %io:format("get_password_recovery_code(~p)->~n    ~p~n~n",
+                    %io:format("get_password_recovery_code(~p)->~n    ~s~n~n",
                     %        [UserId, Data]), 
                     {RootEl, _Misc} = xmerl_scan:string(Data),
                     [AccountRemoteAccess] = RootEl#xmlElement.content,
@@ -177,12 +218,12 @@ http_request(Method, Url, Headers, FunParse)->
 
 http_request(Method, Url, Headers, Body, FunParse)->
     case do_http_request(Method, Url, Headers, Body) of
-   	{ok, {{_Protocol, 200, _Msg}, _Headers, Response}} ->
-		           {ok, FunParse(Response)};
+   	    {ok, {{_Protocol, 200, _Msg}, _Headers, Response}} ->
+            {ok, FunParse(Response)};
     	{ok, {{_Protocol, Code, Msg}, _Headers, Response}} ->
-  	            {error, {Code, Msg, FunParse(Response)}};
+            {error, {Code, Msg, FunParse(Response)}};
     	{error, Reason} ->
-	            {error, Reason}
+            {error, Reason}
     end.
 
 do_http_request('GET', Url, Headers, _Body)->

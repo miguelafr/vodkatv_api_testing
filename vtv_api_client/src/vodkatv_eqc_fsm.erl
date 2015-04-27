@@ -14,7 +14,15 @@
     password_forgotten_users,
     password_recovery_codes,
     current_user_id,
-    current_token%,
+    current_token,
+    product_television,
+    purchase_television,
+    product_videoclub,
+    purchase_videoclub,
+    product_radio,
+    purchase_radio,
+    product_preferences,
+    purchase_preferences
     %channels,
     %favorite_channels
 }).
@@ -30,7 +38,15 @@ initial_state_data() ->
         password_forgotten_users = [],
         password_recovery_codes = [],
         current_user_id = undefined,
-        current_token = undefined %,
+        current_token = undefined,
+        product_television = undefined,
+        purchase_television = undefined,
+        product_videoclub = undefined,
+        purchase_videoclub = undefined,
+        product_radio = undefined,
+        purchase_radio = undefined,
+        product_preferences = undefined,
+        purchase_preferences = undefined%,
         %channels = [],
         %favorite_channels = []
     }.
@@ -40,11 +56,12 @@ initial_state_data() ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 logged() ->
     [{not_logged, logout},
-     {logged, find_user_info}]. %,
-     %{tv_purchased, purchase_tv},
-     %{vod_purchased, purchase_vod},
-     %{radio_purchased, purchase_radio},
-     %{preferences_purchased, purchase_preferences}].
+     {logged, find_user_info},
+     {logged, find_products},
+     {television_purchased, purchase_television_product},
+     {videoclub_purchased, purchase_videoclub_product},
+     {radio_purchased, purchase_radio_product},
+     {preferences_purchased, purchase_preferences_product}].
 
 not_logged() ->
     [{logged, login},
@@ -65,19 +82,19 @@ waiting_for_password_recovery_code() ->
 password_recovery_code_received()->
     [{not_logged, change_password_from_code}].
 
-%tv_purchased() ->
-%    [{logged, cancel_tv},
+television_purchased() ->
+    [{logged, cancel_television_product}]. %,
 %     {tv_purchased, find_channels},
 %     {tv_purchased, find_channel_by_id}].
 
-%vod_purchased() ->
-%    [{logged, cancel_vod}].
+videoclub_purchased() ->
+    [{logged, cancel_videoclub_product}].
 
-%radio_purchased() ->
-%    [{logged, cancel_radio}].
+radio_purchased() ->
+    [{logged, cancel_radio_product}].
 
-%preferences_purchased() ->
-%    [{logged, cancel_preferences}].
+preferences_purchased() ->
+    [{logged, cancel_preferences_product}].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Login
@@ -96,7 +113,15 @@ login_args(_From, _To, S) ->
 login_next(_From, _To, S, V, [UserId, _Password]) ->
     S#state {
         current_user_id = UserId,
-        current_token = V
+        current_token = V,
+        product_television = undefined,
+        purchase_television = undefined,
+        product_videoclub = undefined,
+        purchase_videoclub = undefined,
+        product_radio = undefined,
+        purchase_radio = undefined,
+        product_preferences = undefined,
+        purchase_preferences = undefined
     }.
 
 login_post(_From, _To, _S, _Args, {error, Error}) ->
@@ -133,7 +158,15 @@ logout_args(_From, _To, S) ->
 logout_next(_From, _To, S, _V, _Args) ->
     S#state {
         current_user_id = undefined,
-        current_token = undefined
+        current_token = undefined,
+        product_television = undefined,
+        purchase_television = undefined,
+        product_videoclub = undefined,
+        purchase_videoclub = undefined,
+        product_radio = undefined,
+        purchase_radio = undefined,
+        product_preferences = undefined,
+        purchase_preferences = undefined
     }.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -334,76 +367,242 @@ change_password_from_code_post(_From, _To, _S, _Args, R) ->
     tag([{{change_password_from_code, R}, false}]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Purchase tv
+% Find products
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%purchase_tv() ->
-    %io:format("Purchase tv~n").
-%    ok.
+find_products(Token) ->
+    case vodkatv_connector:find_products(Token) of
+        {ok, R} ->
+            {find_product("television", R),
+            find_product("videoclub", R),
+            find_product("radio", R),
+            find_product("preferences", R)};
+        Other ->
+            {error, Other}
+    end.
 
-%purchase_tv_args(_From, _To, _S) -> [].
+find_products_args(_From, _To, S) ->
+    [S#state.current_token].
+
+find_products_next(_From, _To, S, V, [_Token]) ->
+    S#state {
+        product_television = {call, erlang, element, [1, V]},
+        product_videoclub = {call, erlang, element, [2, V]},
+        product_radio = {call, erlang, element, [3, V]},
+        product_preferences = {call, erlang, element, [4, V]}  
+    }.
+
+find_products_post(_From, _To, _S, _Args, {error, R}) ->
+    tag([{{find_products, R}, false}]);
+find_products_post(_From, _To, _S, _Args, _R) ->
+    true.
+
+find_product(Name, List) ->
+    Product = lists:filter(fun(Element) ->
+        case is_list(Element) of
+            true ->
+                proplists:get_value("name", Element) == Name;
+            false ->
+                false
+        end
+    end, List),
+    case Product of
+        [] ->
+            undefined;
+        [P | _] ->
+            P
+    end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Cancel tv
+% Purchase television
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%cancel_tv() ->
-    %io:format("Cancel tv~n").
-%    ok.
+purchase_television_product(Token, ProductId)->
+    case vodkatv_connector:purchase_product(Token, ProductId) of
+        {ok, R} ->
+            Purchase = proplists:get_value("purchase", R),
+            proplists:get_value("id", Purchase);
+        Other ->
+            {error, Other}
+    end.
 
-%cancel_tv_args(_From, _To, _S) -> [].
+purchase_television_product_pre(_From, _To, S, _Args) ->
+    S#state.product_television /= undefined.
+
+purchase_television_product_args(_From, _To, S) ->
+    ProductId = case S#state.product_television of
+        undefined ->
+            undefined;
+        Product ->
+            {call, proplists, get_value, ["id", Product]}
+    end,
+    [S#state.current_token, ProductId].
+
+purchase_television_product_next(_From, _To, S, V, [_Token, _ProductId]) ->
+    S#state {
+        purchase_television = V
+    }.
+
+purchase_television_product_post(_From, _To, _S, _Args, {error, R}) ->
+    tag([{{purchase_television_product, R}, false}]);
+purchase_television_product_post(_From, _To, _S, _Args, R) ->
+    tag([{{purchase_television_product, R}, (R /= undefined)}]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Purchase vod
+% Cancel television
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%purchase_vod() ->
-    %io:format("Purchase vod~n").
-%    ok.
+cancel_television_product(PurchaseId) ->
+    vodkatv_connector:delete_purchase(PurchaseId).
 
-%purchase_vod_args(_From, _To, _S) -> [].
+cancel_television_product_args(_From, _To, S) ->
+    [S#state.purchase_television].
+
+cancel_television_product_next(_From, _To, S, _V, [_ProductId]) ->
+    S#state {
+        purchase_television = undefined
+    }.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Cancel vod
+% Purchase videoclub
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%cancel_vod() ->
-    %io:format("Cancel vod~n").
-%    ok.
+purchase_videoclub_product(Token, ProductId)->
+    case vodkatv_connector:purchase_product(Token, ProductId) of
+        {ok, R} ->
+            Purchase = proplists:get_value("purchase", R),
+            proplists:get_value("id", Purchase);
+        Other ->
+            {error, Other}
+    end.
 
-%cancel_vod_args(_From, _To, _S) -> [].
+purchase_videoclub_product_pre(_From, _To, S, _Args) ->
+    S#state.product_videoclub /= undefined.
+
+purchase_videoclub_product_args(_From, _To, S) ->
+    ProductId = case S#state.product_videoclub of
+        undefined ->
+            undefined;
+        Product ->
+            {call, proplists, get_value, ["id", Product]}
+    end,
+    [S#state.current_token, ProductId].
+
+purchase_videoclub_product_next(_From, _To, S, V, [_Token, _ProductId]) ->
+    S#state {
+        purchase_videoclub = V
+    }.
+
+purchase_videoclub_product_post(_From, _To, _S, _Args, {error, R}) ->
+    tag([{{purchase_videoclub_product, R}, false}]);
+purchase_videoclub_product_post(_From, _To, _S, _Args, R) ->
+    tag([{{purchase_videoclub_product, R}, (R /= undefined)}]).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Cancel videoclub
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+cancel_videoclub_product(PurchaseId) ->
+    vodkatv_connector:delete_purchase(PurchaseId).
+
+cancel_videoclub_product_args(_From, _To, S) ->
+    [S#state.purchase_videoclub].
+
+cancel_videoclub_product_next(_From, _To, S, _V, [_ProductId]) ->
+    S#state {
+        purchase_videoclub = undefined
+    }.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Purchase radio
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%purchase_radio() ->
-    %io:format("Purchase radio~n").
-%    ok.
+purchase_radio_product(Token, ProductId)->
+    case vodkatv_connector:purchase_product(Token, ProductId) of
+        {ok, R} ->
+            Purchase = proplists:get_value("purchase", R),
+            proplists:get_value("id", Purchase);
+        Other ->
+            {error, Other}
+    end.
 
-%purchase_radio_args(_From, _To, _S) -> [].
+purchase_radio_product_pre(_From, _To, S, _Args) ->
+    S#state.product_radio /= undefined.
+
+purchase_radio_product_args(_From, _To, S) ->
+    ProductId = case S#state.product_radio of
+        undefined ->
+            undefined;
+        Product ->
+            {call, proplists, get_value, ["id", Product]}
+    end,
+    [S#state.current_token, ProductId].
+
+purchase_radio_product_next(_From, _To, S, V, [_Token, _ProductId]) ->
+    S#state {
+        purchase_radio = V
+    }.
+
+purchase_radio_product_post(_From, _To, _S, _Args, {error, R}) ->
+    tag([{{purchase_radio_product, R}, false}]);
+purchase_radio_product_post(_From, _To, _S, _Args, R) ->
+    tag([{{purchase_radio_product, R}, (R /= undefined)}]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Cancel radio
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%cancel_radio() ->
-    %io:format("Cancel vod~n").
-%    ok.
+cancel_radio_product(PurchaseId) ->
+    vodkatv_connector:delete_purchase(PurchaseId).
 
-%cancel_radio_args(_From, _To, _S) -> [].
+cancel_radio_product_args(_From, _To, S) ->
+    [S#state.purchase_radio].
+
+cancel_radio_product_next(_From, _To, S, _V, [_ProductId]) ->
+    S#state {
+        purchase_radio = undefined
+    }.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Purchase preferences
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%purchase_preferences() ->
-    %io:format("Purchase preferences~n").
-%    ok.
+purchase_preferences_product(Token, ProductId)->
+    case vodkatv_connector:purchase_product(Token, ProductId) of
+        {ok, R} ->
+            Purchase = proplists:get_value("purchase", R),
+            proplists:get_value("id", Purchase);
+        Other ->
+            {error, Other}
+    end.
 
-%purchase_preferences_args(_From, _To, _S) -> [].
+purchase_preferences_product_pre(_From, _To, S, _Args) ->
+    S#state.product_preferences /= undefined.
+
+purchase_preferences_product_args(_From, _To, S) ->
+    ProductId = case S#state.product_preferences of
+        undefined ->
+            undefined;
+        Product ->
+            {call, proplists, get_value, ["id", Product]}
+    end,
+    [S#state.current_token, ProductId].
+
+purchase_preferences_product_next(_From, _To, S, V, [_Token, _ProductId]) ->
+    S#state {
+        purchase_preferences = V
+    }.
+
+purchase_preferences_product_post(_From, _To, _S, _Args, {error, R}) ->
+    tag([{{purchase_preferences_product, R}, false}]);
+purchase_preferences_product_post(_From, _To, _S, _Args, R) ->
+    tag([{{purchase_preferences_product, R}, (R /= undefined)}]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Cancel preferences
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%cancel_preferences() ->
-    %io:format("Cancel preferences~n").
-%    ok.
+cancel_preferences_product(PurchaseId) ->
+    vodkatv_connector:delete_purchase(PurchaseId).
 
-%cancel_preferences_args(_From, _To, _S) -> [].
+cancel_preferences_product_args(_From, _To, S) ->
+    [S#state.purchase_preferences].
+
+cancel_preferences_product_next(_From, _To, S, _V, [_ProductId]) ->
+    S#state {
+        purchase_preferences = undefined
+    }.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Find channels
