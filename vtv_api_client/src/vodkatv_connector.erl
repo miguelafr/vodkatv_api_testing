@@ -136,6 +136,55 @@ purchase_product(Token, ProductId) ->
                     kst_erljson:json_to_erl(R)
                 end).
 
+find_tv_channels(Token) ->
+    Url = ?BASE_URL ++ "external/client/plugins/television/FindChannels.do",
+    http_request('GET', Url,
+                get_http_headers_request(Token),
+                fun(Data) -> 
+                    %io:format("find_tv_channels(~p)->~n    ~s~n~n", [Token, Data]), 
+                    {R, _, _} = ktj_decode:decode(Data),
+                    kst_erljson:json_to_erl(R)
+                end).
+
+add_tv_channel_to_favourite_channels(Token, TVChannelId) ->
+    GetParams = generate_get_params([{"vodkatvChannelId", TVChannelId}]),
+    Url = add_get_params(?BASE_URL ++
+        "external/client/plugins/television/AddToFavoriteChannels.do",
+        GetParams),
+    http_request('GET', Url,
+                get_http_headers_request(Token),
+                fun(Data) -> 
+                    %io:format("add_tv_channel_to_favourite_channels(~p, ~p)->~n    ~s~n~n",
+                    %        [Token, TVChannelId, Data]), 
+                    {R, _, _} = ktj_decode:decode(Data),
+                    kst_erljson:json_to_erl(R)
+                end).
+
+remove_tv_channel_from_favourite_channels(Token, TVChannelId) ->
+    GetParams = generate_get_params([{"vodkatvChannelId", TVChannelId}]),
+    Url = add_get_params(?BASE_URL ++
+        "external/client/plugins/television/RemoveFromFavoriteChannels.do",
+        GetParams),
+    http_request('GET', Url,
+                get_http_headers_request(Token),
+                fun(Data) -> 
+                    %io:format("remove_tv_channel_from_favourite_channels(~p, ~p)->~n    ~s~n~n",
+                    %        [Token, TVChannelId, Data]), 
+                    {R, _, _} = ktj_decode:decode(Data),
+                    kst_erljson:json_to_erl(R)
+                end).
+
+find_tv_favourite_channels(Token) ->
+    Url = ?BASE_URL ++ "external/client/plugins/television/FindFavoriteChannels.do",
+    http_request('GET', Url,
+                get_http_headers_request(Token),
+                fun(Data) -> 
+                    %io:format("find_tv_favourite_channels(~p)->~n    ~s~n~n",
+                    %        [Token, Data]), 
+                    {R, _, _} = ktj_decode:decode(Data),
+                    kst_erljson:json_to_erl(R)
+                end).
+
 %%---------------------------------------------------------------
 %% XML API
 %%---------------------------------------------------------------
@@ -210,6 +259,8 @@ get_password_recovery_code(UserId) ->
 get_http_headers_request() ->
     ?HTTP_REQUEST_HEADERS_JSON.
 
+get_http_headers_request(undefined) ->
+    get_http_headers_request();
 get_http_headers_request(Token) ->
     get_http_headers_request() ++ [{"Cookie", "t=" ++ Token}].
 

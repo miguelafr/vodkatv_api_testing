@@ -22,9 +22,9 @@
     product_radio,
     purchase_radio,
     product_preferences,
-    purchase_preferences
-    %channels,
-    %favorite_channels
+    purchase_preferences,
+    tv_channels,
+    tv_favourite_channels
 }).
 
 initial_state() ->
@@ -46,9 +46,9 @@ initial_state_data() ->
         product_radio = undefined,
         purchase_radio = undefined,
         product_preferences = undefined,
-        purchase_preferences = undefined%,
-        %channels = [],
-        %favorite_channels = []
+        purchase_preferences = undefined,
+        tv_channels = [],
+        tv_favourite_channels = []
     }.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -58,14 +58,17 @@ logged() ->
     [{not_logged, logout},
      {logged, find_user_info},
      {logged, find_products},
+     {logged, find_tv_channels_not_allowed},
      {television_purchased, purchase_television_product},
      {videoclub_purchased, purchase_videoclub_product},
      {radio_purchased, purchase_radio_product},
-     {preferences_purchased, purchase_preferences_product}].
+     {preferences_purchased, purchase_preferences_product}
+    ].
 
 not_logged() ->
     [{logged, login},
      {not_logged, login_error},
+     {not_logged, find_tv_channels_not_logged},
      {not_logged, register_user_duplicated},
      {waiting_for_activation_code, register_user},
      {waiting_for_password_recovery_code, password_recovery}].
@@ -83,9 +86,11 @@ password_recovery_code_received()->
     [{not_logged, change_password_from_code}].
 
 television_purchased() ->
-    [{logged, cancel_television_product}]. %,
-%     {tv_purchased, find_channels},
-%     {tv_purchased, find_channel_by_id}].
+    [{logged, cancel_television_product},
+     {television_purchased, find_tv_channels},
+     {television_purchased, add_tv_channel_to_favourite_channels},
+     {television_purchased, remove_tv_channel_from_favourite_channels},
+     {television_purchased, find_tv_favourite_channels}].
 
 videoclub_purchased() ->
     [{logged, cancel_videoclub_product}].
@@ -121,7 +126,8 @@ login_next(_From, _To, S, V, [UserId, _Password]) ->
         product_radio = undefined,
         purchase_radio = undefined,
         product_preferences = undefined,
-        purchase_preferences = undefined
+        purchase_preferences = undefined,
+        tv_channels = []
     }.
 
 login_post(_From, _To, _S, _Args, {error, Error}) ->
@@ -166,7 +172,8 @@ logout_next(_From, _To, S, _V, _Args) ->
         product_radio = undefined,
         purchase_radio = undefined,
         product_preferences = undefined,
-        purchase_preferences = undefined
+        purchase_preferences = undefined,
+        tv_channels = []
     }.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -396,22 +403,6 @@ find_products_post(_From, _To, _S, _Args, {error, R}) ->
 find_products_post(_From, _To, _S, _Args, _R) ->
     true.
 
-find_product(Name, List) ->
-    Product = lists:filter(fun(Element) ->
-        case is_list(Element) of
-            true ->
-                proplists:get_value("name", Element) == Name;
-            false ->
-                false
-        end
-    end, List),
-    case Product of
-        [] ->
-            undefined;
-        [P | _] ->
-            P
-    end.
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Purchase television
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -605,31 +596,189 @@ cancel_preferences_product_next(_From, _To, S, _V, [_ProductId]) ->
     }.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Find channels
+% Find tv channels
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%find_channels() ->
-    %io:format("Find channels~n").
-%    ok.
+find_tv_channels(Token) ->
+    case vodkatv_connector:find_tv_channels(Token) of
+        {ok, R} ->
+            Channels = proplists:get_value("channels", R),
+            proplists:get_value("elements", Channels);
+        Other ->
+            {error, Other}
+    end.
 
-%find_channels_args(_From, _To, _S) -> [].
+find_tv_channels_args(_From, _To, S) -> 
+    [S#state.current_token].
 
-%find_channels_next(From, To, S, _V, Args) ->
-%    S#state {
-%        channels = ["c1"]
-%    }.
+find_tv_channels_next(_From, _To, S, V, [_Token]) ->
+    S#state {
+        tv_channels = V
+    }.
+
+find_tv_channels_post(_From, _To, _S, _Args, {error, R}) ->
+    tag([{{find_tv_channels, R}, false}]);
+find_tv_channels_post(_From, _To, _S, _Args, R) ->
+    tag([{{find_tv_channels, R}, is_list(R) andalso length(R) >= 0}]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Find channel by id
+% Find tv channels not allowed
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%find_channel_by_id(ChannelId) ->
-    %io:format("find_channel_by_id~n").
-%    ok.
+find_tv_channels_not_allowed(Token) ->
+    vodkatv_connector:find_tv_channels(Token).
 
-%find_channel_by_id_pre(_From, _To, S, _Args) ->
-%    true.
+find_tv_channels_not_allowed_args(_From, _To, S) -> 
+    [S#state.current_token].
 
-%find_channel_by_id_args(_From, _To, S) ->
-%    [oneof(S#state.channels)].
+find_tv_channels_not_allowed_post(_From, _To, _S, _Args, {ok, R}) ->
+    [Error] = proplists:get_value("errors", R),
+    Code = proplists:get_value("code", Error),
+    Reason = proplists:get_value("reason", Error),
+    PluginId = proplists:get_value("pluginId", Error),
+    tag([{{purchase_radio_product, R},
+        (Code == "access_denied" andalso
+        Reason == "access_right_plugin_not_found" andalso
+        PluginId == "television")}]);
+find_tv_channels_not_allowed_post(_From, _To, _S, _Args, R) ->
+    tag([{{find_tv_channels_not_allowed, R}, false}]).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Find tv channels not logged
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+find_tv_channels_not_logged(Token) ->
+    vodkatv_connector:find_tv_channels(Token).
+
+find_tv_channels_not_logged_args(_From, _To, S) -> 
+    [S#state.current_token].
+
+find_tv_channels_not_logged_post(_From, _To, _S, _Args, {ok, R}) ->
+    [Error] = proplists:get_value("errors", R),
+    Code = proplists:get_value("code", Error),
+    Reason = proplists:get_value("reason", Error),
+    tag([{{purchase_radio_product, R},
+        (Code == "access_denied" andalso
+        Reason == "not_authenticated")}]);
+find_tv_channels_not_logged_post(_From, _To, _S, _Args, R) ->
+    tag([{{find_tv_channels_not_logged, R}, false}]).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Add tv channel to favourite channels
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+add_tv_channel_to_favourite_channels(Token, TVChannel) ->
+    TVChannelId = proplists:get_value("vodkatvChannelId", TVChannel),
+    case vodkatv_connector:add_tv_channel_to_favourite_channels(Token, TVChannelId) of
+        {ok, R} ->
+            Channels = proplists:get_value("channels", R),
+            proplists:get_value("elements", Channels);
+        Other ->
+            {error, Other}
+    end.
+
+add_tv_channel_to_favourite_channels_dynamicpre(_From, _To, S, [_Token, _TVChannel]) ->
+    length(S#state.tv_channels) > 0.
+
+add_tv_channel_to_favourite_channels_pre(_From, _To, _S, [_Token, TVChannel]) ->
+    TVChannel /= {call, eqc_gen, pick ,[{call, eqc_gen,elements, [[]]}]}.
+
+add_tv_channel_to_favourite_channels_args(_From, _To, S) -> 
+    [S#state.current_token, {call, eqc_gen, pick, [{call, eqc_gen, elements, [S#state.tv_channels]}]}].
+
+add_tv_channel_to_favourite_channels_next(_From, _To, S, _V, [_Token, TVChannel]) ->
+    UserId = S#state.current_user_id,
+    UserTVChannels = case lists:keyfind(UserId, 1, S#state.tv_favourite_channels) of
+        false ->
+            {UserId, [TVChannel]};
+        {UserId, TVChannels} ->
+            {UserId, [TVChannel | lists:delete(TVChannel, TVChannels)]}
+    end,
+    S#state {
+        tv_favourite_channels = [UserTVChannels |
+                lists:keydelete(UserId, 1, S#state.tv_favourite_channels)]
+    }.
+
+add_tv_channel_to_favourite_channels_post(_From, _To, _S, _Args, {error, R}) ->
+    tag([{{add_tv_channel_to_favourite_channels, R}, false}]);
+add_tv_channel_to_favourite_channels_post(_From, _To, _S,  [_Token, TVChannel], R) ->
+    tag([{{add_tv_channel_to_favourite_channels, R}, contains_tv_channel(TVChannel, R)}]).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Remove tv channel from favourite channels
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+remove_tv_channel_from_favourite_channels(Token, TVChannel) ->
+    TVChannelId = proplists:get_value("vodkatvChannelId", TVChannel),
+    case vodkatv_connector:remove_tv_channel_from_favourite_channels(Token, TVChannelId) of
+        {ok, R} ->
+            Channels = proplists:get_value("channels", R),
+            proplists:get_value("elements", Channels);
+        Other ->
+            {error, Other}
+    end.
+
+remove_tv_channel_from_favourite_channels_pre(_From, _To, _S, [_Token, TVChannel]) ->
+    TVChannel /= undefined.
+
+remove_tv_channel_from_favourite_channels_args(_From, _To, S) -> 
+    case proplists:get_value(
+            S#state.current_user_id, S#state.tv_favourite_channels) of
+        undefined ->
+            [S#state.current_token, undefined];
+        TVChannels ->
+            [S#state.current_token, eqc_gen:elements(TVChannels)]
+    end.
+
+remove_tv_channel_from_favourite_channels_next(_From, _To, S, _V, [_Token, TVChannel]) ->
+    UserId = S#state.current_user_id,
+    case lists:keyfind(UserId, 1, S#state.tv_favourite_channels) of
+        false ->
+            S#state {
+                tv_favourite_channels = lists:keydelete(UserId, 1,
+                        S#state.tv_favourite_channels)
+            };
+        {UserId, [TVChannel]} ->
+            S#state {
+                tv_favourite_channels = lists:keydelete(UserId, 1,
+                        S#state.tv_favourite_channels)
+            };
+        {UserId, TVChannels} ->
+            UserTVChannels = {UserId, lists:delete(TVChannel, TVChannels)},
+            S#state {
+                tv_favourite_channels = [UserTVChannels |
+                    lists:keydelete(UserId, 1, S#state.tv_favourite_channels)]
+            }
+            
+    end.
+
+remove_tv_channel_from_favourite_channels_post(_From, _To, _S, _Args, {error, R}) ->
+    tag([{{remove_tv_channel_from_favourite_channels, R}, false}]);
+remove_tv_channel_from_favourite_channels_post(_From, _To, _S, [_Token, TVChannel], R) ->
+    tag([{{remove_tv_channel_from_favourite_channels, R}, not contains_tv_channel(TVChannel, R)}]).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Find tv favourite channels
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+find_tv_favourite_channels(Token) ->
+    case vodkatv_connector:find_tv_favourite_channels(Token) of
+        {ok, R} ->
+            Channels = proplists:get_value("channels", R),
+            proplists:get_value("elements", Channels);
+        Other ->
+            {error, Other}
+    end.
+
+find_tv_favourite_channels_args(_From, _To, S) -> 
+    [S#state.current_token].
+
+find_tv_favourite_channels_post(_From, _To, _S, _Args, {error, R}) ->
+    tag([{{find_tv_favourite_channels, R}, false}]);
+find_tv_favourite_channels_post(_From, _To, S, _Args, R) ->
+    UserId = S#state.current_user_id,
+    UserTVChannels = case lists:keyfind(UserId, 1, S#state.tv_favourite_channels) of
+        false ->
+            [];
+        {UserId, TVChannels} ->
+            TVChannels
+    end,
+    tag([{{find_tv_favourite_channels, UserTVChannels, R},
+        equals_tv_channels(UserTVChannels, R)}]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Generators
@@ -649,6 +798,36 @@ tag([{_Name, true} | MoreTags]) ->
     tag(MoreTags);
 tag([{Name, false} | _MoreTags]) ->
     Name.
+
+find_product(Name, List) ->
+    Product = lists:filter(fun(Element) ->
+        case is_list(Element) of
+            true ->
+                proplists:get_value("name", Element) == Name;
+            false ->
+                false
+        end
+    end, List),
+    case Product of
+        [] ->
+            undefined;
+        [P | _] ->
+            P
+    end.
+
+contains_tv_channel(TVChannel, TVChannels) ->
+    Id = proplists:get_value("vodkatvChannelId", TVChannel),
+    lists:any(fun(T) ->
+        proplists:get_value("vodkatvChannelId", T) == Id
+    end, TVChannels).
+
+equals_tv_channels(TVChannels1, TVChannels2) ->
+    lists:all(fun(TVChannel) ->
+        contains_tv_channel(TVChannel, TVChannels2)
+    end, TVChannels1) andalso
+    lists:all(fun(TVChannel) ->
+        contains_tv_channel(TVChannel, TVChannels1)
+    end, TVChannels2).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Setup/teardown
@@ -680,8 +859,9 @@ prop() ->
         ?FORALL(Cmds, (commands(?MODULE)),
         begin
             initialize_vodkatv(),
-            {H, S, Res} = run_commands(?MODULE, Cmds),
-            ?WHENFAIL((io:format("H: ~p ~n S: ~p ~n Res: ~p ~n", [H, S, Res])),
+            {_H, _S, Res} = run_commands(?MODULE, Cmds),
+            %?WHENFAIL((io:format("H: ~p ~n S: ~p ~n Res: ~p ~n", [H, S, Res])),
+            ?WHENFAIL((io:format("Res: ~p ~n", [Res])),
             (aggregate(command_names(Cmds), Res == ok)))
         end)).
 
