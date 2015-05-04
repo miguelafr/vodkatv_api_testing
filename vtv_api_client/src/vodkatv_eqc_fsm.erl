@@ -6,6 +6,7 @@
 -compile(export_all).
 
 -define(EQC_PREFFIX, "eqc_user_").
+-define(MAX_VOD_MOVIES, 10).
 
 -record(state, {
     valid_users,
@@ -24,7 +25,9 @@
     product_preferences,
     purchase_preferences,
     tv_channels,
-    tv_favourite_channels
+    tv_favourite_channels,
+    vod_movies,
+    vod_rented_movies
 }).
 
 initial_state() ->
@@ -48,7 +51,9 @@ initial_state_data() ->
         product_preferences = undefined,
         purchase_preferences = undefined,
         tv_channels = [],
-        tv_favourite_channels = []
+        tv_favourite_channels = [],
+        vod_movies = [],
+        vod_rented_movies = []
     }.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -59,16 +64,17 @@ logged() ->
      {logged, find_user_info},
      {logged, find_products},
      {logged, find_tv_channels_not_allowed},
+     {logged, find_vod_movies_not_allowed},
      {television_purchased, purchase_television_product},
      {videoclub_purchased, purchase_videoclub_product},
      {radio_purchased, purchase_radio_product},
-     {preferences_purchased, purchase_preferences_product}
-    ].
+     {preferences_purchased, purchase_preferences_product}].
 
 not_logged() ->
     [{logged, login},
      {not_logged, login_error},
      {not_logged, find_tv_channels_not_logged},
+     {not_logged, find_vod_movies_not_logged},
      {not_logged, register_user_duplicated},
      {waiting_for_activation_code, register_user},
      {waiting_for_password_recovery_code, password_recovery}].
@@ -77,7 +83,8 @@ waiting_for_activation_code() ->
     [{activation_code_received, get_activation_code}].
 
 activation_code_received() ->
-    [{logged, activate_user}].
+    [{logged, activate_user},
+     {activation_code_received, activate_user_wrong_activation_code}].
 
 waiting_for_password_recovery_code() ->
     [{password_recovery_code_received, get_password_recovery_code}].
@@ -93,7 +100,10 @@ television_purchased() ->
      {television_purchased, find_tv_favourite_channels}].
 
 videoclub_purchased() ->
-    [{logged, cancel_videoclub_product}].
+    [{logged, cancel_videoclub_product},
+     {videoclub_purchased, find_vod_movies},
+     {videoclub_purchased, rent_vod_movie},
+     {videoclub_purchased, find_vod_rented_movies}].
 
 radio_purchased() ->
     [{logged, cancel_radio_product}].
@@ -127,7 +137,8 @@ login_next(_From, _To, S, V, [UserId, _Password]) ->
         purchase_radio = undefined,
         product_preferences = undefined,
         purchase_preferences = undefined,
-        tv_channels = []
+        tv_channels = [],
+        vod_movies = []
     }.
 
 login_post(_From, _To, _S, _Args, {error, Error}) ->
@@ -173,7 +184,8 @@ logout_next(_From, _To, S, _V, _Args) ->
         purchase_radio = undefined,
         product_preferences = undefined,
         purchase_preferences = undefined,
-        tv_channels = []
+        tv_channels = [],
+        vod_movies = []
     }.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -230,8 +242,8 @@ register_user_duplicated_args(_From, _To, S) ->
         [UserId, gen_password()]).
 
 register_user_duplicated_post(_From, _To, _S, [UserId, _Password],
-        {error, {409, _Msg, Result}}) ->
-    [Error | []] = proplists:get_value("errors", Result),
+        {error, {409, _Msg, R}}) ->
+    [Error | []] = proplists:get_value("errors", R),
     [ErrorParam | []] = proplists:get_value("params", Error),
     ReturnedUserId = proplists:get_value("value", ErrorParam),
     tag([{register_user_duplicated, (UserId == ReturnedUserId)}]);
@@ -294,6 +306,29 @@ activate_user_post(_From, _To, _S, _Args, {error, Error}) ->
     tag([{{activate_user, Error}, false}]);
 activate_user_post(_From, _To, _S, _Args, R) ->
     tag([{activate_user, (R /= undefined) andalso (R /= "")}]).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Activate user wrong activation code
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+activate_user_wrong_activation_code(ActivationCode) ->
+    vodkatv_connector:activate_user(ActivationCode).
+
+activate_user_wrong_activation_code_args(_From, _To, _S) ->
+    ?LET(N, nat(), [integer_to_list(N)]).
+
+activate_user_wrong_activation_code_post(_From, _To, _S, [ActivationCode],
+        {error, {404, _Msg, R}}) ->
+    [Error] = proplists:get_value("errors", R),
+    Code = proplists:get_value("code", Error),
+    [Params] = proplists:get_value("params", Error),
+    ParamName = proplists:get_value("name", Params),
+    ParamValue = proplists:get_value("value", Params),
+    tag([{{activate_user_wrong_activation_code, R},
+        (Code == "not_found" andalso
+        ParamName == "access/activationCode" andalso
+        ParamValue == ActivationCode)}]);
+activate_user_wrong_activation_code_post(_From, _To, _S, _Args, R) ->
+    tag([{{activate_user_wrong_activation_code, R}, false}]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Password recovery
@@ -634,7 +669,7 @@ find_tv_channels_not_allowed_post(_From, _To, _S, _Args, {ok, R}) ->
     Code = proplists:get_value("code", Error),
     Reason = proplists:get_value("reason", Error),
     PluginId = proplists:get_value("pluginId", Error),
-    tag([{{purchase_radio_product, R},
+    tag([{{find_tv_channels_not_allowed, R},
         (Code == "access_denied" andalso
         Reason == "access_right_plugin_not_found" andalso
         PluginId == "television")}]);
@@ -654,7 +689,7 @@ find_tv_channels_not_logged_post(_From, _To, _S, _Args, {ok, R}) ->
     [Error] = proplists:get_value("errors", R),
     Code = proplists:get_value("code", Error),
     Reason = proplists:get_value("reason", Error),
-    tag([{{purchase_radio_product, R},
+    tag([{{find_tv_channels_not_logged, R},
         (Code == "access_denied" andalso
         Reason == "not_authenticated")}]);
 find_tv_channels_not_logged_post(_From, _To, _S, _Args, R) ->
@@ -781,6 +816,138 @@ find_tv_favourite_channels_post(_From, _To, S, _Args, R) ->
         equals_tv_channels(UserTVChannels, R)}]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Find vod movies
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+find_vod_movies(Token, StartIndex, Count) ->
+    case vodkatv_connector:find_vod_movies(Token, StartIndex, Count) of
+        {ok, R} ->
+            proplists:get_value("assets", R);
+        Other ->
+            {error, Other}
+    end.
+
+find_vod_movies_args(_From, _To, S) -> 
+    [S#state.current_token, 1, ?MAX_VOD_MOVIES].
+
+find_vod_movies_next(_From, _To, S, V, _Args) ->
+    S#state {
+        vod_movies = V
+    }.
+
+find_vod_movies_post(_From, _To, _S, _Args, {error, R}) ->
+    tag([{{find_vod_movies, R}, false}]);
+find_vod_movies_post(_From, _To, _S, _Args, R) ->
+    tag([{{find_vod_movies, R}, is_list(R) andalso length(R) >= 0}]).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Find vod movies not allowed
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+find_vod_movies_not_allowed(Token, StartIndex, Count) ->
+    vodkatv_connector:find_vod_movies(Token, StartIndex, Count).
+
+find_vod_movies_not_allowed_args(_From, _To, S) -> 
+    [S#state.current_token, 1, ?MAX_VOD_MOVIES].
+
+find_vod_movies_not_allowed_post(_From, _To, _S, _Args, {ok, R}) ->
+    [Error] = proplists:get_value("errors", R),
+    Code = proplists:get_value("code", Error),
+    Reason = proplists:get_value("reason", Error),
+    PluginId = proplists:get_value("pluginId", Error),
+    tag([{{find_vod_movies_not_allowed, R},
+        (Code == "access_denied" andalso
+        Reason == "access_right_plugin_not_found" andalso
+        PluginId == "videoclub")}]);
+find_vod_movies_not_allowed_post(_From, _To, _S, _Args, R) ->
+    tag([{{find_vod_movies_not_allowed, R}, false}]).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Find vod movies not logged
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+find_vod_movies_not_logged(Token, StartIndex, Count) ->
+    vodkatv_connector:find_vod_movies(Token, StartIndex, Count).
+
+find_vod_movies_not_logged_args(_From, _To, S) -> 
+    [S#state.current_token, 1, ?MAX_VOD_MOVIES].
+
+find_vod_movies_not_logged_post(_From, _To, _S, _Args, {ok, R}) ->
+    [Error] = proplists:get_value("errors", R),
+    Code = proplists:get_value("code", Error),
+    Reason = proplists:get_value("reason", Error),
+    tag([{{find_vod_movies_not_logged, R},
+        (Code == "access_denied" andalso
+        Reason == "not_authenticated")}]);
+find_vod_movies_not_logged_post(_From, _To, _S, _Args, R) ->
+    tag([{{find_vod_movies_not_logged, R}, false}]).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Rent vod movie
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+rent_vod_movie(Token, Movie) ->
+    MovieId = proplists:get_value("id", Movie),
+    case vodkatv_connector:rent_vod_movie(Token, MovieId, 0, "EUR") of
+        {ok, R} ->
+            R;
+        Other ->
+            {error, Other}
+    end.
+
+rent_vod_movie_dynamicpre(_From, _To, S, [_Token, _Movie]) ->
+    length(S#state.vod_movies) > 0.
+
+rent_vod_movie_pre(_From, _To, _S, [_Token, Movie]) ->
+    Movie /= {call, eqc_gen, pick ,[{call, eqc_gen,elements, [[]]}]}.
+
+rent_vod_movie_args(_From, _To, S) -> 
+    [S#state.current_token, {call, eqc_gen, pick, [{call, eqc_gen, elements, [S#state.vod_movies]}]}].
+
+rent_vod_movie_next(_From, _To, S, _V, [_Token, Movie]) ->
+    UserId = S#state.current_user_id,
+    UserRentedVodMovies = case lists:keyfind(UserId, 1, S#state.vod_rented_movies) of
+        false ->
+            {UserId, [Movie]};
+        {UserId, Movies} ->
+            {UserId, [Movie | lists:delete(Movie, Movies)]}
+    end,
+    S#state {
+        vod_rented_movies = [UserRentedVodMovies |
+                lists:keydelete(UserId, 1, S#state.vod_rented_movies)]
+    }.
+
+rent_vod_movie_post(_From, _To, _S, _Args, {error, R}) ->
+    tag([{{rent_vod_movie, R}, false}]);
+rent_vod_movie_post(_From, _To, _S, [_Token, Movie], R) ->
+    ReturnedMovie = proplists:get_value("asset", R),
+    tag([{{rent_vod_movie, R}, (proplists:get_value("id", ReturnedMovie) ==
+            proplists:get_value("id", Movie))}]).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Find vod rented movies
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+find_vod_rented_movies(Token, StartIndex, Count) ->
+    case vodkatv_connector:find_vod_rented_movies(Token, StartIndex, Count) of
+        {ok, R} ->
+            proplists:get_value("assets", R);
+        Other ->
+            {error, Other}
+    end.
+
+find_vod_rented_movies_args(_From, _To, S) -> 
+    [S#state.current_token, 1, ?MAX_VOD_MOVIES].
+
+find_vod_rented_movies_post(_From, _To, _S, _Args, {error, R}) ->
+    tag([{{find_vod_rented_movies, R}, false}]);
+find_vod_rented_movies_post(_From, _To, S, _Args, R) ->
+    UserId = S#state.current_user_id,
+    UserVoDRentedMovies = case lists:keyfind(UserId, 1, S#state.vod_rented_movies) of
+        false ->
+            [];
+        {UserId, Movies} ->
+            Movies
+    end,
+    tag([{{find_vod_rented_movies, UserVoDRentedMovies, R},
+        equals_vod_movies(UserVoDRentedMovies, R)}]).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Generators
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 user_id(N)->
@@ -828,6 +995,20 @@ equals_tv_channels(TVChannels1, TVChannels2) ->
     lists:all(fun(TVChannel) ->
         contains_tv_channel(TVChannel, TVChannels1)
     end, TVChannels2).
+
+contains_vod_movie(Movie, Movies) ->
+    Id = proplists:get_value("id", Movie),
+    lists:any(fun(T) ->
+        proplists:get_value("id", T) == Id
+    end, Movies).
+
+equals_vod_movies(Movies1, Movies2) ->
+    lists:all(fun(Movie) ->
+        contains_vod_movie(Movie, Movies2)
+    end, Movies1) andalso
+    lists:all(fun(Movie) ->
+        contains_vod_movie(Movie, Movies1)
+    end, Movies2).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Setup/teardown

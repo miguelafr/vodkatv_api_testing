@@ -10,6 +10,7 @@
     [{"user-agent", "Chrome"},
     {"Accept", "application/json"},
     {"Content-Type", "application/json"}]).
+-define(DEBUG, false).
 
 %%---------------------------------------------------------------
 %% JSON API
@@ -21,8 +22,13 @@ login(UserId, Password) ->
     http_request('GET', Url,
                 get_http_headers_request(),
                 fun(Data) ->
-                    %io:format("login(~p, ~p)->~n    ~s~n~n",
-                    %        [UserId, Password, Data]), 
+                    case ?DEBUG of
+                        true -> 
+                            io:format("login(~p, ~p)->~n    ~s~n~n",
+                                [UserId, Password, Data]);
+                        false ->
+                            ok
+                    end,
                     {R, _, _} = ktj_decode:decode(Data),
                     kst_erljson:json_to_erl(R)
                 end).
@@ -31,8 +37,13 @@ logout(Token) ->
     Url = ?BASE_URL ++ "external/client/core/Logout.do",
     http_request('GET', Url,
                 get_http_headers_request(Token),
-                fun(Data) -> 
-                    %io:format("logout(~p)->~n    ~s~n~n", [Token, Data]), 
+                fun(Data) ->
+                    case ?DEBUG of
+                        true -> 
+                            io:format("logout(~p)->~n    ~s~n~n", [Token, Data]);
+                        false ->
+                            ok
+                    end, 
                     {R, _, _} = ktj_decode:decode(Data),
                     kst_erljson:json_to_erl(R)
                 end).
@@ -42,7 +53,13 @@ find_user_info(Token) ->
     http_request('GET', Url,
                 get_http_headers_request(Token),
                 fun(Data) -> 
-                    %io:format("find_user_info(~p)->~n    ~s~n~n", [Token, Data]), 
+                    case ?DEBUG of
+                        true -> 
+                            io:format("find_user_info(~p)->~n    ~s~n~n",
+                                [Token, Data]);
+                        false ->
+                            ok
+                    end,
                     {R, _, _} = ktj_decode:decode(Data),
                     kst_erljson:json_to_erl(R)
                 end).
@@ -63,8 +80,13 @@ register_user(UserName, Password) ->
                 get_http_headers_request(),
                 list_to_binary(Json),
                 fun(Data) -> 
-                    %io:format("register_user(~p, ~p)->~n    ~s~n~n",
-                    %        [UserName, Password, Data]), 
+                    case ?DEBUG of
+                        true -> 
+                            io:format("register_user(~p, ~p)->~n    ~s~n~n",
+                                    [UserName, Password, Data]);
+                        false ->
+                            ok
+                    end,
                     {R, _, _} = ktj_decode:decode(Data),
                     kst_erljson:json_to_erl(R)
                 end).
@@ -75,8 +97,13 @@ activate_user(ActivationCode) ->
     http_request('PUT', Url,
                 get_http_headers_request(),
                 fun(Data) -> 
-                    %io:format("activate_user(~p)->~n    ~s~n~n",
-                    %        [ActivationCode, Data]), 
+                    case ?DEBUG of
+                        true -> 
+                            io:format("activate_user(~p)->~n    ~s~n~n",
+                                    [ActivationCode, Data]);
+                        false ->
+                            ok
+                    end,
                     {R, _, _} = ktj_decode:decode(Data),
                     kst_erljson:json_to_erl(R)
                 end).
@@ -87,8 +114,13 @@ password_recovery(UserId) ->
     http_request('PUT', Url,
                 get_http_headers_request(),
                 fun(Data) -> 
-                    %io:format("password_recovery(~p)->~n    ~s~n~n",
-                    %        [UserId, Data]), 
+                    case ?DEBUG of
+                        true -> 
+                            io:format("password_recovery(~p)->~n    ~s~n~n",
+                                    [UserId, Data]);
+                        false ->
+                            ok
+                    end,
                     {R, _, _} = ktj_decode:decode(Data),
                     kst_erljson:json_to_erl(R)
                 end).
@@ -100,8 +132,13 @@ change_password_from_code(Code, Password) ->
                 get_http_headers_request(),
                 list_to_binary(Password),
                 fun(Data) -> 
-                    %io:format("change_password_from_code(~p, ~p)->~n    ~s~n~n",
-                    %        [Code, Password, Data]), 
+                    case ?DEBUG of
+                        true -> 
+                            io:format("change_password_from_code(~p, ~p)->~n    ~s~n~n",
+                                    [Code, Password, Data]);
+                        false ->
+                            ok
+                    end,
                     {R, _, _} = ktj_decode:decode(Data),
                     kst_erljson:json_to_erl(R)
                 end).
@@ -111,7 +148,13 @@ find_products(Token) ->
     http_request('GET', Url,
                 get_http_headers_request(Token),
                 fun(Data) -> 
-                    %io:format("find_products(~p)->~n    ~s~n~n", [Token, Data]), 
+                    case ?DEBUG of
+                        true -> 
+                            io:format("find_products(~p)->~n    ~s~n~n",
+                                [Token, Data]);
+                        false ->
+                            ok
+                    end,
                     {R, _, _} = ktj_decode:decode(Data),
                     Result = kst_erljson:json_to_erl(R),
                     case proplists:get_value("subscriptions", Result) of
@@ -131,7 +174,13 @@ purchase_product(Token, ProductId) ->
     http_request('GET', Url,
                 get_http_headers_request(Token),
                 fun(Data) -> 
-                    %io:format("purchase_product(~p, ~p)->~n    ~s~n~n", [Token, ProductId, Data]), 
+                    case ?DEBUG of
+                        true -> 
+                            io:format("purchase_product(~p, ~p)->~n    ~s~n~n",
+                                [Token, ProductId, Data]);
+                        false ->
+                            ok
+                    end,
                     {R, _, _} = ktj_decode:decode(Data),
                     kst_erljson:json_to_erl(R)
                 end).
@@ -141,7 +190,13 @@ find_tv_channels(Token) ->
     http_request('GET', Url,
                 get_http_headers_request(Token),
                 fun(Data) -> 
-                    %io:format("find_tv_channels(~p)->~n    ~s~n~n", [Token, Data]), 
+                    case ?DEBUG of
+                        true -> 
+                            io:format("find_tv_channels(~p)->~n    ~s~n~n",
+                                [Token, Data]);
+                        false ->
+                            ok
+                    end,
                     {R, _, _} = ktj_decode:decode(Data),
                     kst_erljson:json_to_erl(R)
                 end).
@@ -154,8 +209,13 @@ add_tv_channel_to_favourite_channels(Token, TVChannelId) ->
     http_request('GET', Url,
                 get_http_headers_request(Token),
                 fun(Data) -> 
-                    %io:format("add_tv_channel_to_favourite_channels(~p, ~p)->~n    ~s~n~n",
-                    %        [Token, TVChannelId, Data]), 
+                    case ?DEBUG of
+                        true -> 
+                            io:format("add_tv_channel_to_favourite_channels(~p, ~p)->~n    ~s~n~n",
+                                [Token, TVChannelId, Data]);
+                        false ->
+                            ok
+                    end,
                     {R, _, _} = ktj_decode:decode(Data),
                     kst_erljson:json_to_erl(R)
                 end).
@@ -168,8 +228,13 @@ remove_tv_channel_from_favourite_channels(Token, TVChannelId) ->
     http_request('GET', Url,
                 get_http_headers_request(Token),
                 fun(Data) -> 
-                    %io:format("remove_tv_channel_from_favourite_channels(~p, ~p)->~n    ~s~n~n",
-                    %        [Token, TVChannelId, Data]), 
+                    case ?DEBUG of
+                        true -> 
+                            io:format("remove_tv_channel_from_favourite_channels(~p, ~p)->~n    ~s~n~n",
+                                [Token, TVChannelId, Data]);
+                        false ->
+                            ok
+                    end,
                     {R, _, _} = ktj_decode:decode(Data),
                     kst_erljson:json_to_erl(R)
                 end).
@@ -179,8 +244,73 @@ find_tv_favourite_channels(Token) ->
     http_request('GET', Url,
                 get_http_headers_request(Token),
                 fun(Data) -> 
-                    %io:format("find_tv_favourite_channels(~p)->~n    ~s~n~n",
-                    %        [Token, Data]), 
+                    case ?DEBUG of
+                        true -> 
+                            io:format("find_tv_favourite_channels(~p)->~n    ~s~n~n",
+                                [Token, Data]);
+                        false ->
+                            ok
+                    end,
+                    {R, _, _} = ktj_decode:decode(Data),
+                    kst_erljson:json_to_erl(R)
+                end).
+
+find_vod_movies(Token, StartIndex, Count) ->
+    GetParams = generate_get_params([{"startIndex", StartIndex},
+        {"count", Count}]),
+    Url = add_get_params(?BASE_URL ++
+        "external/client/plugins/videoclub/SearchAssets.do",
+        GetParams),
+    http_request('GET', Url,
+                get_http_headers_request(Token),
+                fun(Data) -> 
+                    case ?DEBUG of
+                        true -> 
+                            io:format("find_vod_movies(~p, ~p, ~p)->~n    ~s~n~n",
+                                [Token, StartIndex, Count, Data]);
+                        false ->
+                            ok
+                    end,
+                    {R, _, _} = ktj_decode:decode(Data),
+                    kst_erljson:json_to_erl(R)
+                end).
+
+find_vod_rented_movies(Token, StartIndex, Count) ->
+    GetParams = generate_get_params([{"startIndex", StartIndex},
+        {"count", Count}]),
+    Url = add_get_params(?BASE_URL ++
+        "external/client/plugins/videoclub/FindRentals.do",
+        GetParams),
+    http_request('GET', Url,
+                get_http_headers_request(Token),
+                fun(Data) ->
+                    case ?DEBUG of
+                        true -> 
+                            io:format("find_rented_movies(~p, ~p, ~p)->~n    ~s~n~n",
+                                [Token, StartIndex, Count, Data]);
+                        false ->
+                            ok
+                    end,
+                    {R, _, _} = ktj_decode:decode(Data),
+                    kst_erljson:json_to_erl(R)
+                end).
+
+rent_vod_movie(Token, MovieId, Price, Currency) ->
+    GetParams = generate_get_params([{"assetId", MovieId},
+        {"price", Price}, {"currency", Currency}]),
+    Url = add_get_params(?BASE_URL ++
+        "external/client/plugins/videoclub/RentAsset.do",
+        GetParams),
+    http_request('GET', Url,
+                get_http_headers_request(Token),
+                fun(Data) -> 
+                    case ?DEBUG of
+                        true -> 
+                            io:format("rent_vod_movie(~p, ~p)->~n    ~s~n~n",
+                                [Token, MovieId, Data]);
+                        false ->
+                            ok
+                    end,
                     {R, _, _} = ktj_decode:decode(Data),
                     kst_erljson:json_to_erl(R)
                 end).
@@ -192,7 +322,12 @@ find_all_rooms() ->
     Url = ?BASE_URL ++ "external/admin/configuration/FindAllRooms.do",
     http_request('GET', Url, [],
                 fun(Data) -> 
-                    %io:format("find_all_rooms()->~n    ~s~n~n", [Data]), 
+                    case ?DEBUG of
+                        true -> 
+                            io:format("find_all_rooms()->~n    ~s~n~n", [Data]);
+                        false ->
+                            ok
+                    end,
                     {RootEl, _Misc} = xmerl_scan:string(Data),
                     Rooms = RootEl#xmlElement.content,
                     lists:map(fun(Room) ->
@@ -209,8 +344,13 @@ delete_room_device_session(RoomId) ->
         "external/admin/configuration/DeleteRoomDeviceSession.do", GetParams),
     http_request('GET', Url, [],
                 fun(Data) -> 
-                    %io:format("delete_room_device_session(~p)->~n    ~s~n~n",
-                    %        [RoomId, Data]), 
+                    case ?DEBUG of
+                        true -> 
+                            io:format("delete_room_device_session(~p)->~n    ~s~n~n",
+                                [RoomId, Data]);
+                        false ->
+                            ok
+                    end,
                     ok
                 end).
 
@@ -220,8 +360,13 @@ delete_purchase(PurchaseId) ->
         "external/admin/business/DeletePurchase.do", GetParams),
     http_request('GET', Url, [],
                 fun(Data) -> 
-                    %io:format("delete_purchase(~p)->~n    ~s~n~n",
-                    %        [PurchaseId, Data]), 
+                    case ?DEBUG of
+                        true -> 
+                            io:format("delete_purchase(~p)->~n    ~s~n~n",
+                                [PurchaseId, Data]);
+                        false ->
+                            ok
+                    end,
                     ok
                 end).
 
@@ -231,8 +376,13 @@ get_activation_code(UserId) ->
         "external/admin/accounting/FindActivationCodeByUserId.do", GetParams),
     http_request('GET', Url, [],
                 fun(Data) -> 
-                    %io:format("get_activation_code(~p)->~n    ~s~n~n",
-                    %        [UserId, Data]), 
+                    case ?DEBUG of
+                        true -> 
+                            io:format("get_activation_code(~p)->~n    ~s~n~n",
+                                [UserId, Data]);
+                        false ->
+                            ok
+                    end,
                     {RootEl, _Misc} = xmerl_scan:string(Data),
                     [AccountRemoteAccess] = RootEl#xmlElement.content,
                     [ActivationCode] = AccountRemoteAccess#xmlElement.content,
@@ -245,8 +395,13 @@ get_password_recovery_code(UserId) ->
         "external/admin/accounting/FindPasswordRecoveryCodeByUserId.do", GetParams),
     http_request('GET', Url, [],
                 fun(Data) -> 
-                    %io:format("get_password_recovery_code(~p)->~n    ~s~n~n",
-                    %        [UserId, Data]), 
+                    case ?DEBUG of
+                        true -> 
+                            io:format("get_password_recovery_code(~p)->~n    ~s~n~n",
+                                [UserId, Data]);
+                        false ->
+                            ok
+                    end,
                     {RootEl, _Misc} = xmerl_scan:string(Data),
                     [AccountRemoteAccess] = RootEl#xmlElement.content,
                     [ActivationCode] = AccountRemoteAccess#xmlElement.content,
