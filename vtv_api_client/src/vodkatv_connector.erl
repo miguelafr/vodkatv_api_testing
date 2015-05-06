@@ -408,6 +408,26 @@ get_password_recovery_code(UserId) ->
                     ActivationCode#xmlText.value
                 end).
 
+find_all_channels() ->
+    Url = ?BASE_URL ++ "external/admin/moviesmanagement/FindVodkatvChannels.do",
+    http_request('GET', Url, [],
+                fun(Data) -> 
+                    case ?DEBUG of
+                        true -> 
+                            io:format("find_all_channels()->~n    ~s~n~n", [Data]);
+                        false ->
+                            ok
+                    end,
+                    {RootEl, _Misc} = xmerl_scan:string(Data),
+                    Channels = RootEl#xmlElement.content,
+                    lists:map(fun(Channel) ->
+                        [[ChannelId]] = [ChannelAttr#xmlElement.content ||
+                            ChannelAttr <- Channel#xmlElement.content,
+                            ChannelAttr#xmlElement.name == vodkatvChannelId],
+                        [{"vodkatvChannelId", ChannelId#xmlText.value}]
+                    end, Channels)
+                end).
+
 %%---------------------------------------------------------------
 %% Utilities
 %%---------------------------------------------------------------

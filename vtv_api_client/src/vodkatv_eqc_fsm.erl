@@ -34,6 +34,7 @@ initial_state() ->
     not_logged.
 
 initial_state_data() ->
+    {ok, TVChannels} = vodkatv_connector:find_all_channels(),
     #state {
         valid_users = [],
         not_activated_users = [],
@@ -50,7 +51,7 @@ initial_state_data() ->
         purchase_radio = undefined,
         product_preferences = undefined,
         purchase_preferences = undefined,
-        tv_channels = [],
+        tv_channels = TVChannels,
         tv_favourite_channels = [],
         vod_movies = [],
         vod_rented_movies = []
@@ -137,7 +138,6 @@ login_next(_From, _To, S, V, [UserId, _Password]) ->
         purchase_radio = undefined,
         product_preferences = undefined,
         purchase_preferences = undefined,
-        tv_channels = [],
         vod_movies = []
     }.
 
@@ -184,7 +184,6 @@ logout_next(_From, _To, S, _V, _Args) ->
         purchase_radio = undefined,
         product_preferences = undefined,
         purchase_preferences = undefined,
-        tv_channels = [],
         vod_movies = []
     }.
 
@@ -645,15 +644,10 @@ find_tv_channels(Token) ->
 find_tv_channels_args(_From, _To, S) -> 
     [S#state.current_token].
 
-find_tv_channels_next(_From, _To, S, V, [_Token]) ->
-    S#state {
-        tv_channels = V
-    }.
-
 find_tv_channels_post(_From, _To, _S, _Args, {error, R}) ->
     tag([{{find_tv_channels, R}, false}]);
-find_tv_channels_post(_From, _To, _S, _Args, R) ->
-    tag([{{find_tv_channels, R}, is_list(R) andalso length(R) >= 0}]).
+find_tv_channels_post(_From, _To, S, _Args, R) ->
+    tag([{{find_tv_channels, R}, equals_tv_channels(R, S#state.tv_channels)}]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Find tv channels not allowed
@@ -708,14 +702,11 @@ add_tv_channel_to_favourite_channels(Token, TVChannel) ->
             {error, Other}
     end.
 
-add_tv_channel_to_favourite_channels_dynamicpre(_From, _To, S, [_Token, _TVChannel]) ->
+add_tv_channel_to_favourite_channels_pre(_From, _To, S, [_Token, _TVChannel]) ->
     length(S#state.tv_channels) > 0.
 
-add_tv_channel_to_favourite_channels_pre(_From, _To, _S, [_Token, TVChannel]) ->
-    TVChannel /= {call, eqc_gen, pick ,[{call, eqc_gen,elements, [[]]}]}.
-
 add_tv_channel_to_favourite_channels_args(_From, _To, S) -> 
-    [S#state.current_token, {call, eqc_gen, pick, [{call, eqc_gen, elements, [S#state.tv_channels]}]}].
+    [S#state.current_token, elements(S#state.tv_channels)].
 
 add_tv_channel_to_favourite_channels_next(_From, _To, S, _V, [_Token, TVChannel]) ->
     UserId = S#state.current_user_id,
