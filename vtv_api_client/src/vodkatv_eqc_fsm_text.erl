@@ -1,4 +1,4 @@
--module(vodkatv_eqc_fsm).
+-module(vodkatv_eqc_fsm_text).
 
 -include_lib("eqc/include/eqc.hrl"). 
 -include_lib("eqc/include/eqc_fsm.hrl"). 
