@@ -885,11 +885,17 @@ rent_vod_movie(Token, Movie) ->
 rent_vod_movie_dynamicpre(_From, _To, S, [_Token, _Movie]) ->
     length(S#state.vod_movies) > 0.
 
-rent_vod_movie_pre(_From, _To, _S, [_Token, Movie]) ->
-    Movie /= {call, eqc_gen, pick ,[{call, eqc_gen,elements, [[]]}]}.
+rent_vod_movie_pre(_From, _To, _S, [_Token, {call, lists, nth, [_N, []]}]) ->
+    false;
+rent_vod_movie_pre(_From, _To, _S, [_Token, _Movie]) ->
+    true.
 
 rent_vod_movie_args(_From, _To, S) -> 
-    [S#state.current_token, {call, eqc_gen, pick, [{call, eqc_gen, elements, [S#state.vod_movies]}]}].
+    [S#state.current_token,
+    ?LET(N,
+        choose(1, ?MAX_VOD_MOVIES),
+        {call, lists, nth, [N, S#state.vod_movies]}
+    )].
 
 rent_vod_movie_next(_From, _To, S, _V, [_Token, Movie]) ->
     UserId = S#state.current_user_id,
