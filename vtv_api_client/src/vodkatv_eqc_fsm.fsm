@@ -1,0 +1,54 @@
+initial_state() ->
+    not_logged.
+
+logged() ->
+    [{not_logged, logout},
+     {logged, find_user_info},
+     {logged, find_products},
+     {logged, find_tv_channels_not_allowed},
+     {logged, find_vod_movies_not_allowed},
+     {television_purchased, purchase_television_product},
+     {videoclub_purchased, purchase_videoclub_product},
+     {radio_purchased, purchase_radio_product},
+     {preferences_purchased, purchase_preferences_product}].
+
+not_logged() ->
+    [{logged, login},
+     {not_logged, login_error},
+     {not_logged, find_tv_channels_not_logged},
+     {not_logged, find_vod_movies_not_logged},
+     {not_logged, register_user_duplicated},
+     {waiting_for_activation_code, register_user},
+     {waiting_for_password_recovery_code, password_recovery}].
+
+waiting_for_activation_code() ->
+    [{activation_code_received, get_activation_code}].
+
+activation_code_received() ->
+    [{logged, activate_user},
+     {activation_code_received, activate_user_wrong_activation_code}].
+
+waiting_for_password_recovery_code() ->
+    [{password_recovery_code_received, get_password_recovery_code}].
+
+password_recovery_code_received()->
+    [{not_logged, change_password_from_code}].
+
+television_purchased() ->
+    [{logged, cancel_television_product},
+     {television_purchased, find_tv_channels},
+     {television_purchased, add_tv_channel_to_favourite_channels},
+     {television_purchased, remove_tv_channel_from_favourite_channels},
+     {television_purchased, find_tv_favourite_channels}].
+
+videoclub_purchased() ->
+    [{logged, cancel_videoclub_product},
+     {videoclub_purchased, find_vod_movies},
+     {videoclub_purchased, rent_vod_movie},
+     {videoclub_purchased, find_vod_rented_movies}].
+
+radio_purchased() ->
+    [{logged, cancel_radio_product}].
+
+preferences_purchased() ->
+    [{logged, cancel_preferences_product}].
