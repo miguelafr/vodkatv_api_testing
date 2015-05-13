@@ -10,16 +10,16 @@
 -define(MAX_VOD_MOVIES, 10).
 
 -record(state, {
-    valid_users, 
-    not_activated_users,
-    activation_codes,
-    current_user_id,
-    current_token, % a user that has logged in is given a tocken that has to be passed to all VodkaTV commands
+    valid_users, % users that have been registered and activated
+    not_activated_users, % users that have been registered, but they have been activated yet
+    activation_codes, % list of codes to activate users
+    current_user_id, % user that is currently logged in
+    current_token, % a user that has logged in is given a token that has to be passed to all VoDKATV operations
     product_television, % identifier of a TV service
     product_videoclub,  % identifier of a VOD service
     purchase_videoclub, % id of the VOD purchase, used for cancellation
     tv_channels, % list of all possible channels, obtained at initialisation via admin service
-    vod_movies,
+    vod_movies, 
     vod_rented_movies
 }).
 
