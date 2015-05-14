@@ -465,7 +465,7 @@ do_http_request('POST', Url, Headers, Body)->
 httpc_request(Method, Request, HTTPOptions, Options) ->
     case httpc:request(Method, Request, HTTPOptions, Options) of
         {error,socket_closed_remotely} ->
-            io:format("Warning: socket_closed_remotely error. Retrying request...~n"),
+            %io:format("Warning: socket_closed_remotely error. Retrying request...~n"),
             httpc_request(Method, Request, HTTPOptions, Options);
         R ->
             R
