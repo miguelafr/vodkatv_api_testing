@@ -1,10 +1,10 @@
 initial_state() -> not_logged.
 
-password_recovery_code_received() ->
+codereceived() ->
   [ {not_logged,change_password_from_code} ].
 
-waiting_for_password_recovery_code() ->
-  [ {password_recovery_code_received,get_password_recovery_code} ].
+startedrecovery() ->
+  [ {codereceived,get_password_recovery_code} ].
 
 activation_code_received() ->
   [ {logged,activate_user},
@@ -14,29 +14,30 @@ activation_code_received() ->
 waiting_for_activation_code() ->
   [ {activation_code_received,get_activation_code} ].
 
-videoclub_purchased() ->
-  [ {logged,cancel_videoclub_product},
-    {videoclub_purchased,find_vod_movies},
-    {videoclub_purchased,rent_vod_movie},
-    {videoclub_purchased,find_vod_rented_movies}
+tv() ->
+  [ {logged,cancel_television_product},
+    {tv,add_tv_channel_to_favourite_channels}
   ].
 
-television_purchased() ->
-  [ {logged,cancel_television_product},
-    {television_purchased,find_tv_channels},
-    {television_purchased,add_tv_channel_to_favourite_channels},
-    {television_purchased,remove_tv_channel_from_favourite_channels},
-    {television_purchased,find_tv_favourite_channels}
+findproducts() ->
+  [ {findproducts,find_products},
+    {tv,purchase_television_product},
+    {videoclub_purchased,purchase_videoclub_product}
+  ].
+
+videoclub_purchased() ->
+  [ {videoclub_purchased,find_vod_movies},
+    {videoclub_purchased,rent_vod_movie},
+    {videoclub_purchased,find_vod_rented_movies},
+    {findproducts,cancel_videoclub_product}
   ].
 
 logged() ->
   [ {not_logged,logout},
     {logged,find_user_info},
-    {logged,find_products},
     {logged,find_tv_channels_not_allowed},
     {logged,find_vod_movies_not_allowed},
-    {television_purchased,purchase_television_product},
-    {videoclub_purchased,purchase_videoclub_product}
+    {findproducts,find_products}
   ].
 
 not_logged() ->
@@ -46,36 +47,34 @@ not_logged() ->
     {not_logged,find_vod_movies_not_logged},
     {not_logged,register_user_duplicated},
     {waiting_for_activation_code,register_user},
-    {waiting_for_password_recovery_code,password_recovery}
+    {startedrecovery,password_recovery}
   ].
 
-weight(password_recovery_code_received,not_logged,{call,_,change_password_from_code,_}) -> 1;
-weight(waiting_for_password_recovery_code,password_recovery_code_received,{call,_,get_password_recovery_code,_}) -> 1;
+weight(codereceived,not_logged,{call,_,change_password_from_code,_}) -> 1;
+weight(startedrecovery,codereceived,{call,_,get_password_recovery_code,_}) -> 1;
 weight(activation_code_received,logged,{call,_,activate_user,_}) -> 1;
 weight(activation_code_received,activation_code_received,{call,_,activate_user_wrong_activation_code,_}) -> 1;
 weight(waiting_for_activation_code,activation_code_received,{call,_,get_activation_code,_}) -> 1;
-weight(videoclub_purchased,logged,{call,_,cancel_videoclub_product,_}) -> 1;
+weight(tv,logged,{call,_,cancel_television_product,_}) -> 1;
+weight(tv,tv,{call,_,add_tv_channel_to_favourite_channels,_}) -> 1;
+weight(findproducts,findproducts,{call,_,find_products,_}) -> 1;
+weight(findproducts,tv,{call,_,purchase_television_product,_}) -> 1;
+weight(findproducts,videoclub_purchased,{call,_,purchase_videoclub_product,_}) -> 1;
 weight(videoclub_purchased,videoclub_purchased,{call,_,find_vod_movies,_}) -> 1;
 weight(videoclub_purchased,videoclub_purchased,{call,_,rent_vod_movie,_}) -> 1;
 weight(videoclub_purchased,videoclub_purchased,{call,_,find_vod_rented_movies,_}) -> 1;
-weight(television_purchased,logged,{call,_,cancel_television_product,_}) -> 1;
-weight(television_purchased,television_purchased,{call,_,find_tv_channels,_}) -> 1;
-weight(television_purchased,television_purchased,{call,_,add_tv_channel_to_favourite_channels,_}) -> 1;
-weight(television_purchased,television_purchased,{call,_,remove_tv_channel_from_favourite_channels,_}) -> 1;
-weight(television_purchased,television_purchased,{call,_,find_tv_favourite_channels,_}) -> 1;
+weight(videoclub_purchased,findproducts,{call,_,cancel_videoclub_product,_}) -> 1;
 weight(logged,not_logged,{call,_,logout,_}) -> 1;
 weight(logged,logged,{call,_,find_user_info,_}) -> 1;
-weight(logged,logged,{call,_,find_products,_}) -> 1;
 weight(logged,logged,{call,_,find_tv_channels_not_allowed,_}) -> 1;
 weight(logged,logged,{call,_,find_vod_movies_not_allowed,_}) -> 1;
-weight(logged,television_purchased,{call,_,purchase_television_product,_}) -> 1;
-weight(logged,videoclub_purchased,{call,_,purchase_videoclub_product,_}) -> 1;
+weight(logged,findproducts,{call,_,find_products,_}) -> 1;
 weight(not_logged,logged,{call,_,login,_}) -> 1;
 weight(not_logged,not_logged,{call,_,login_error,_}) -> 1;
 weight(not_logged,not_logged,{call,_,find_tv_channels_not_logged,_}) -> 1;
 weight(not_logged,not_logged,{call,_,find_vod_movies_not_logged,_}) -> 1;
 weight(not_logged,not_logged,{call,_,register_user_duplicated,_}) -> 1;
 weight(not_logged,waiting_for_activation_code,{call,_,register_user,_}) -> 1;
-weight(not_logged,waiting_for_password_recovery_code,{call,_,password_recovery,_}) -> 1;
+weight(not_logged,startedrecovery,{call,_,password_recovery,_}) -> 1;
 weight(_,_,_) -> 1.
 

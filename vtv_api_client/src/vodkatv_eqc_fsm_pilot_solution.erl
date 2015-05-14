@@ -1,4 +1,4 @@
--module(vodkatv_eqc_fsm_pilot).
+-module(vodkatv_eqc_fsm_pilot_solution).
 
 -include_lib("eqc/include/eqc.hrl"). 
 -include_lib("eqc/include/eqc_fsm.hrl"). 
@@ -10,7 +10,7 @@
 -define(MAX_VOD_MOVIES, 10).
 
 -record(state, {
-    valid_users, % users that have been registered and activated
+    valid_users, % users that have been registered and activated, contains pairs of {Userid,Password}
     not_activated_users, % users that have been registered, but they have been activated yet
     activation_codes, % list of codes to activate users
     current_user_id, % user that is currently logged in
@@ -19,8 +19,13 @@
     product_videoclub,  % identifier of a VOD service
     purchase_videoclub, % id of the VOD purchase, used for cancellation
     tv_channels, % list of all possible channels, obtained at initialisation via admin service
-    vod_movies, 
-    vod_rented_movies
+    vod_movies,
+    vod_rented_movies,
+% Pilot: New elements
+    tv_bought,
+    possible_favourites,
+    recovery_users,
+    recovery_codes
 }).
 
 initial_state_data() ->
@@ -36,7 +41,12 @@ initial_state_data() ->
         purchase_videoclub = undefined,
         tv_channels = TVChannels,
         vod_movies = [],
-        vod_rented_movies = []
+        vod_rented_movies = [],
+% Pilog: initialise new elements
+       possible_favourites=[],
+       tv_bought=[],
+       recovery_users=[],
+       recovery_codes=[]
     }.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -60,7 +70,9 @@ login_next(_From, _To, S, V, [UserId, _Password]) ->
         product_television = undefined,
         product_videoclub = undefined,
         purchase_videoclub = undefined,
-        vod_movies = []
+        vod_movies = [],
+possible_favourites=[],
+tv_bought=[]
     }.
 
 login_post(_From, _To, _S, _Args, {error, Error}) ->
@@ -249,17 +261,19 @@ activate_user_wrong_activation_code_post(_From, _To, _S, _Args, R) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Password recovery
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-password_recovery(UserId) ->
+password_recovery({UserId,_}) ->
     vodkatv_connector:password_recovery(UserId).
 
 password_recovery_args(_From, _To, S) ->
-    ok. % YOU NEED TO WRITE THIS, using login as an illustration. Functions proplists:delete(Key,List), lists:delete(Elem,List) and proplists:get_value(Key,List) could be useful for password recovery routines.
+    [elements(S#state.valid_users)]. % YOU NEED TO WRITE THIS, using login as an illustration. Functions proplists:delete(Key,List), lists:delete(Elem,List) and proplists:get_value(Key,List) could be useful for password recovery routines.
 
-password_recovery_next(_From, _To, S, _V, [UserId]) ->
-    S. % YOU NEED TO WRITE THIS
+password_recovery_pre(_From, _To, S,[{UserId,_}]) ->not lists:member(UserId,S#state.recovery_users).
+
+password_recovery_next(_From, _To, S, _V, [{UserId,_}]) ->
+    S#state{recovery_users=[UserId|S#state.recovery_users]}. % YOU NEED TO WRITE THIS
 
 password_recovery_post(_From, _To, _S, [{_UserId,_}], {ok, _R}) ->
-    true;
+   true;
 password_recovery_post(_From, _To, _S, [{_UserId,_}], _) ->
     false.
 
@@ -275,10 +289,10 @@ get_password_recovery_code(UserId) ->
     end.
 
 get_password_recovery_code_args(_From, _To, S) ->
-   ok. % YOU NEED TO WRITE THIS, in part using login as an illustration
+   [elements(S#state.recovery_users)]. % YOU NEED TO WRITE THIS, in part using login as an illustration
 
 get_password_recovery_code_next(_From, _To, S, V, [UserId]) ->
-    S. % YOU NEED TO WRITE THIS
+    S#state{recovery_codes=[{UserId,V}|S#state.recovery_codes]}. % YOU NEED TO WRITE THIS
 
 get_password_recovery_code_post(_From, _To, _S, _Args, {error, _Other}) ->
     false;
@@ -288,14 +302,15 @@ get_password_recovery_code_post(_From, _To, _S, _Args, _R) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Change password from code
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-change_password_from_code(PasswordRecoveryCode, Password) ->
+change_password_from_code({_UserId,PasswordRecoveryCode}, Password) ->
     vodkatv_connector:change_password_from_code(PasswordRecoveryCode, Password).
 
 change_password_from_code_args(_From, _To, S) ->
-    ok. % YOU NEED TO WRITE THIS
+    [elements(S#state.recovery_codes),gen_password()]. % YOU NEED TO WRITE THIS
 
-change_password_from_code_next(_From, _To, S, _V,[PasswordRecoveryCode, Password]) ->
-    S. % YOU NEED TO WRITE THIS, do not forget that new password needs to be stored for the benefit of login
+change_password_from_code_next(_From, _To, S, _V,[{UserId,_PasswordRecoveryCode}, Password]) ->
+    S#state{valid_users=[{UserId,Password}|proplists:delete(UserId,S#state.valid_users)],
+	    recovery_users=lists:delete(UserId,S#state.recovery_users),recovery_codes=proplists:delete(UserId,S#state.recovery_codes)}. % YOU NEED TO WRITE THIS, do not forget that new password needs to be stored for the benefit of login
 
 change_password_from_code_post(_From, _To, _S, [{_UserId,_PasswordRecoveryCode}, _Password], {ok, _R}) ->
     true;
@@ -343,7 +358,7 @@ purchase_television_product(Token, ProductId)->
     end.
 
 purchase_television_product_pre(_From, _To, S, _Args) ->
-    true. % YOU NEED TO WRITE THIS, but note that we are modelling behaviour from a single user point of view, hence only one user can use a television at a time. 
+    S#state.tv_bought =/= undefined.% YOU NEED TO WRITE THIS, note that we are modelling a single user system here: only one user can use television at the same time.
 
 purchase_television_product_args(_From, _To, S) ->
     ProductId = case S#state.product_television of
@@ -355,7 +370,7 @@ purchase_television_product_args(_From, _To, S) ->
     [S#state.current_token, ProductId].
 
 purchase_television_product_next(_From, _To, S, V, [_Token, _ProductId]) ->
-    S. % YOU NEED TO WRITE THIS, but note that we are modelling behaviour from a single user point of view, hence only one user can use a television at a time. 
+    S#state{tv_bought=V,possible_favourites=S#state.tv_channels}. % YOU NEED TO WRITE THIS, note that we are modelling a single user system here: only one user can use television at the same time.
 
 purchase_television_product_post(_From, _To, _S, _Args, {error, R}) ->
     tag([{{purchase_television_product, R}, false}]);
@@ -369,10 +384,10 @@ cancel_television_product(PurchaseId) ->
     vodkatv_connector:delete_purchase(PurchaseId).
 
 cancel_television_product_args(_From, _To, S) ->
-    ok. % YOU NEED TO WRITE THIS
+    [S#state.tv_bought]. % YOU NEED TO WRITE THIS
 
 cancel_television_product_next(_From, _To, S, _V, [_ProductId]) ->
-    S. % YOU NEED TO WRITE THIS
+    S#state{tv_bought=undefined}. % YOU NEED TO WRITE THIS
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Find tv channels
@@ -407,11 +422,12 @@ add_tv_channel_to_favourite_channels(Token, TVChannel) ->
             {error, Other}
     end.
 
-add_tv_channel_to_favourite_channels_args(_From, _To, S) -> 
-    ok. % YOU NEED TO WRITE THIS
+add_tv_channel_to_favourite_channels_args(_From, _To, S) ->
+%    [A|_]=S#state.tv_channels,[S#state.current_token,A].
+    [S#state.current_token,elements(S#state.possible_favourites)]. % YOU NEED TO WRITE THIS 
 
 add_tv_channel_to_favourite_channels_next(_From, _To, S, _V, [_Token, TVChannel]) ->
-    S.% YOU NEED TO WRITE THIS
+    S#state{possible_favourites=lists:delete(TVChannel,S#state.possible_favourites)}.% YOU NEED TO WRITE THIS
 
 add_tv_channel_to_favourite_channels_post(_From, _To, _S, _Args, {error, _R}) ->
     false;
@@ -431,7 +447,7 @@ purchase_videoclub_product(Token, ProductId)->
     end.
 
 purchase_videoclub_product_pre(_From, _To, _S, _Args) ->
-   true.
+    true.
 
 purchase_videoclub_product_args(_From, _To, S) ->
     ProductId = case S#state.product_videoclub of
