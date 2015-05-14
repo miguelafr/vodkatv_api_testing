@@ -23,9 +23,9 @@
     vod_rented_movies,
 % Pilot: New elements
     tv_bought,
-    possible_favourites,
-    recovery_users,
-    recovery_codes
+    favourites,
+    recovery_user,
+    recovery_code
 }).
 
 initial_state_data() ->
@@ -43,10 +43,10 @@ initial_state_data() ->
         vod_movies = [],
         vod_rented_movies = [],
 % Pilog: initialise new elements
-       possible_favourites=[],
+       favourites=[],
        tv_bought=[],
-       recovery_users=[],
-       recovery_codes=[]
+       recovery_user=undefined,
+       recovery_code=undefined
     }.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -71,7 +71,7 @@ login_next(_From, _To, S, V, [UserId, _Password]) ->
         product_videoclub = undefined,
         purchase_videoclub = undefined,
         vod_movies = [],
-possible_favourites=[],
+favourites=[],
 tv_bought=[]
     }.
 
@@ -267,10 +267,10 @@ password_recovery({UserId,_}) ->
 password_recovery_args(_From, _To, S) ->
     [elements(S#state.valid_users)]. % YOU NEED TO WRITE THIS, using login as an illustration. Functions proplists:delete(Key,List), lists:delete(Elem,List) and proplists:get_value(Key,List) could be useful for password recovery routines.
 
-password_recovery_pre(_From, _To, S,[{UserId,_}]) ->not lists:member(UserId,S#state.recovery_users).
+password_recovery_pre(_From, _To, _S,[{_UserId,_}]) ->true.
 
 password_recovery_next(_From, _To, S, _V, [{UserId,_}]) ->
-    S#state{recovery_users=[UserId|S#state.recovery_users]}. % YOU NEED TO WRITE THIS
+    S#state{recovery_user=UserId}. % YOU NEED TO WRITE THIS
 
 password_recovery_post(_From, _To, _S, [{_UserId,_}], {ok, _R}) ->
    true;
@@ -289,10 +289,10 @@ get_password_recovery_code(UserId) ->
     end.
 
 get_password_recovery_code_args(_From, _To, S) ->
-   [elements(S#state.recovery_users)]. % YOU NEED TO WRITE THIS, in part using login as an illustration
+   [S#state.recovery_user]. % YOU NEED TO WRITE THIS, in part using login as an illustration
 
-get_password_recovery_code_next(_From, _To, S, V, [UserId]) ->
-    S#state{recovery_codes=[{UserId,V}|S#state.recovery_codes]}. % YOU NEED TO WRITE THIS
+get_password_recovery_code_next(_From, _To, S, V, [_UserId]) ->
+    S#state{recovery_code=V}. % YOU NEED TO WRITE THIS
 
 get_password_recovery_code_post(_From, _To, _S, _Args, {error, _Other}) ->
     false;
@@ -302,19 +302,19 @@ get_password_recovery_code_post(_From, _To, _S, _Args, _R) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Change password from code
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-change_password_from_code({_UserId,PasswordRecoveryCode}, Password) ->
+change_password_from_code(PasswordRecoveryCode, Password) ->
     vodkatv_connector:change_password_from_code(PasswordRecoveryCode, Password).
 
 change_password_from_code_args(_From, _To, S) ->
-    [elements(S#state.recovery_codes),gen_password()]. % YOU NEED TO WRITE THIS
+    [S#state.recovery_code,gen_password()]. % YOU NEED TO WRITE THIS
 
-change_password_from_code_next(_From, _To, S, _V,[{UserId,_PasswordRecoveryCode}, Password]) ->
-    S#state{valid_users=[{UserId,Password}|proplists:delete(UserId,S#state.valid_users)],
-	    recovery_users=lists:delete(UserId,S#state.recovery_users),recovery_codes=proplists:delete(UserId,S#state.recovery_codes)}. % YOU NEED TO WRITE THIS, do not forget that new password needs to be stored for the benefit of login
+change_password_from_code_next(_From, _To, S, _V,[_PasswordRecoveryCode, Password]) ->
+    S#state{valid_users=[{S#state.recovery_user,Password}|proplists:delete(S#state.recovery_user,S#state.valid_users)],
+	    recovery_user=undefined,recovery_code=undefined}. % YOU NEED TO WRITE THIS, do not forget that new password needs to be stored for the benefit of login
 
-change_password_from_code_post(_From, _To, _S, [{_UserId,_PasswordRecoveryCode}, _Password], {ok, _R}) ->
+change_password_from_code_post(_From, _To, _S, [_PasswordRecoveryCode, _Password], {ok, _R}) ->
     true;
-change_password_from_code_post(_From, _To, _S, [{_UserId,_PasswordRecoveryCode}, _Password], _) ->
+change_password_from_code_post(_From, _To, _S, [_PasswordRecoveryCode, _Password], _) ->
     false.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -370,7 +370,7 @@ purchase_television_product_args(_From, _To, S) ->
     [S#state.current_token, ProductId].
 
 purchase_television_product_next(_From, _To, S, V, [_Token, _ProductId]) ->
-    S#state{tv_bought=V,possible_favourites=S#state.tv_channels}. % YOU NEED TO WRITE THIS, note that we are modelling a single user system here: only one user can use television at the same time.
+    S#state{tv_bought=V}. % YOU NEED TO WRITE THIS, note that we are modelling a single user system here: only one user can use television at the same time.
 
 purchase_television_product_post(_From, _To, _S, _Args, {error, R}) ->
     tag([{{purchase_television_product, R}, false}]);
@@ -423,16 +423,42 @@ add_tv_channel_to_favourite_channels(Token, TVChannel) ->
     end.
 
 add_tv_channel_to_favourite_channels_args(_From, _To, S) ->
-%    [A|_]=S#state.tv_channels,[S#state.current_token,A].
-    [S#state.current_token,elements(S#state.possible_favourites)]. % YOU NEED TO WRITE THIS 
+    [S#state.current_token,elements(S#state.tv_channels)]. % YOU NEED TO WRITE THIS 
 
 add_tv_channel_to_favourite_channels_next(_From, _To, S, _V, [_Token, TVChannel]) ->
-    S#state{possible_favourites=lists:delete(TVChannel,S#state.possible_favourites)}.% YOU NEED TO WRITE THIS
+    S#state{favourites=[TVChannel|S#state.favourites]}.% YOU NEED TO WRITE THIS
 
 add_tv_channel_to_favourite_channels_post(_From, _To, _S, _Args, {error, _R}) ->
     false;
 add_tv_channel_to_favourite_channels_post(_From, _To, _S, _Args, _) ->
     true.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Remove tv channel from favourite channels
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+remove_from_favourite_channels(Token, TVChannel) ->
+    TVChannelId = proplists:get_value("vodkatvChannelId", TVChannel),
+    case vodkatv_connector:remove_tv_channel_from_favourite_channels(Token, TVChannelId) of
+        {ok, R} ->
+            Channels = proplists:get_value("channels", R),
+            proplists:get_value("elements", Channels);
+        Other ->
+            {error, Other}
+    end.
+
+remove_from_favourite_channels_pre(_From, _To, _S, [_Token, _TVChannel]) ->
+    true. % YOU NEED TO WRITE THIS
+
+remove_from_favourite_channels_args(_From, _To, S) -> 
+    [S#state.current_token,elements(S#state.tv_channels)]. % YOU NEED TO WRITE THIS
+
+remove_from_favourite_channels_next(_From, _To, S, _V, [_Token, TVChannel]) ->
+    S#state{favourites=lists:delete(TVChannel,S#state.favourites)}. % YOU NEED TO WRITE THIS
+
+remove_from_favourite_channels_post(_From, _To, _S, _Args, {error, R}) ->
+    tag([{{remove_tv_channel_from_favourite_channels, R}, false}]);
+remove_from_favourite_channels_post(_From, _To, _S, [_Token, TVChannel], R) ->
+    tag([{{remove_tv_channel_from_favourite_channels, R}, not contains_tv_channel(TVChannel, R)}]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Purchase videoclub

@@ -14,22 +14,23 @@ activation_code_received() ->
 waiting_for_activation_code() ->
   [ {activation_code_received,get_activation_code} ].
 
+videoclub_purchased() ->
+  [ {videoclub_purchased,find_vod_movies},
+    {videoclub_purchased,rent_vod_movie},
+    {videoclub_purchased,find_vod_rented_movies},
+    {findproducts,cancel_videoclub_product}
+  ].
+
 tv() ->
   [ {logged,cancel_television_product},
-    {tv,add_tv_channel_to_favourite_channels}
+    {tv,add_tv_channel_to_favourite_channels},
+    {tv,remove_from_favourite_channels}
   ].
 
 findproducts() ->
   [ {findproducts,find_products},
     {tv,purchase_television_product},
     {videoclub_purchased,purchase_videoclub_product}
-  ].
-
-videoclub_purchased() ->
-  [ {videoclub_purchased,find_vod_movies},
-    {videoclub_purchased,rent_vod_movie},
-    {videoclub_purchased,find_vod_rented_movies},
-    {findproducts,cancel_videoclub_product}
   ].
 
 logged() ->
@@ -55,15 +56,16 @@ weight(startedrecovery,codereceived,{call,_,get_password_recovery_code,_}) -> 1;
 weight(activation_code_received,logged,{call,_,activate_user,_}) -> 1;
 weight(activation_code_received,activation_code_received,{call,_,activate_user_wrong_activation_code,_}) -> 1;
 weight(waiting_for_activation_code,activation_code_received,{call,_,get_activation_code,_}) -> 1;
-weight(tv,logged,{call,_,cancel_television_product,_}) -> 1;
-weight(tv,tv,{call,_,add_tv_channel_to_favourite_channels,_}) -> 1;
-weight(findproducts,findproducts,{call,_,find_products,_}) -> 1;
-weight(findproducts,tv,{call,_,purchase_television_product,_}) -> 1;
-weight(findproducts,videoclub_purchased,{call,_,purchase_videoclub_product,_}) -> 1;
 weight(videoclub_purchased,videoclub_purchased,{call,_,find_vod_movies,_}) -> 1;
 weight(videoclub_purchased,videoclub_purchased,{call,_,rent_vod_movie,_}) -> 1;
 weight(videoclub_purchased,videoclub_purchased,{call,_,find_vod_rented_movies,_}) -> 1;
 weight(videoclub_purchased,findproducts,{call,_,cancel_videoclub_product,_}) -> 1;
+weight(tv,logged,{call,_,cancel_television_product,_}) -> 1;
+weight(tv,tv,{call,_,add_tv_channel_to_favourite_channels,_}) -> 1;
+weight(tv,tv,{call,_,remove_from_favourite_channels,_}) -> 2;
+weight(findproducts,findproducts,{call,_,find_products,_}) -> 1;
+weight(findproducts,tv,{call,_,purchase_television_product,_}) -> 10;
+weight(findproducts,videoclub_purchased,{call,_,purchase_videoclub_product,_}) -> 1;
 weight(logged,not_logged,{call,_,logout,_}) -> 1;
 weight(logged,logged,{call,_,find_user_info,_}) -> 1;
 weight(logged,logged,{call,_,find_tv_channels_not_allowed,_}) -> 1;

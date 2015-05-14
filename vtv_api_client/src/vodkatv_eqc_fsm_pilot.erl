@@ -411,12 +411,39 @@ add_tv_channel_to_favourite_channels_args(_From, _To, S) ->
     ok. % YOU NEED TO WRITE THIS
 
 add_tv_channel_to_favourite_channels_next(_From, _To, S, _V, [_Token, TVChannel]) ->
-    S.% YOU NEED TO WRITE THIS
+    S. % YOU NEED TO WRITE THIS
 
 add_tv_channel_to_favourite_channels_post(_From, _To, _S, _Args, {error, _R}) ->
     false;
 add_tv_channel_to_favourite_channels_post(_From, _To, _S, _Args, _) ->
     true.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Remove tv channel from favourite channels
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+remove_from_favourite_channels(Token, TVChannel) ->
+    TVChannelId = proplists:get_value("vodkatvChannelId", TVChannel),
+    case vodkatv_connector:remove_tv_channel_from_favourite_channels(Token, TVChannelId) of
+        {ok, R} ->
+            Channels = proplists:get_value("channels", R),
+            proplists:get_value("elements", Channels);
+        Other ->
+            {error, Other}
+    end.
+
+remove_from_favourite_channels_pre(_From, _To, _S, [_Token, TVChannel]) ->
+    true. % YOU NEED TO WRITE THIS
+
+remove_from_favourite_channels_args(_From, _To, S) -> 
+    ok. % YOU NEED TO WRITE THIS
+
+remove_from_favourite_channels_next(_From, _To, S, _V, [_Token, TVChannel]) ->
+    S. % YOU NEED TO WRITE THIS
+
+remove_from_favourite_channels_post(_From, _To, _S, _Args, {error, R}) ->
+    tag([{{remove_tv_channel_from_favourite_channels, R}, false}]);
+remove_from_favourite_channels_post(_From, _To, _S, [_Token, TVChannel], R) ->
+    tag([{{remove_tv_channel_from_favourite_channels, R}, not contains_tv_channel(TVChannel, R)}]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Purchase videoclub
