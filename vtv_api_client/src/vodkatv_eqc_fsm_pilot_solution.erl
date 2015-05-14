@@ -423,7 +423,7 @@ add_tv_channel_to_favourite_channels(Token, TVChannel) ->
     end.
 
 add_tv_channel_to_favourite_channels_args(_From, _To, S) ->
-    [S#state.current_token,elements(S#state.tv_channels)]. % YOU NEED TO WRITE THIS 
+    [S#state.current_token,elements(S#state.tv_channels)]. % YOU NEED TO WRITE THIS, either using a _pre or with ?SUCHTHAT(X,Generator,Condition)
 
 add_tv_channel_to_favourite_channels_next(_From, _To, S, _V, [_Token, TVChannel]) ->
     S#state{favourites=[TVChannel|S#state.favourites]}.% YOU NEED TO WRITE THIS
