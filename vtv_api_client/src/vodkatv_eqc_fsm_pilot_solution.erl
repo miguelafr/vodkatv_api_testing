@@ -271,7 +271,7 @@ password_recovery_next(_From, _To, S, _V, [{UserId,_}]) ->
     S#state{recovery_user=UserId}. % YOU NEED TO WRITE THIS
 
 password_recovery_post(_From, _To, _S, [{_UserId,_}], {ok, _R}) ->
-   true;
+    true;
 password_recovery_post(_From, _To, _S, [{_UserId,_}], _) ->
     false.
 
@@ -751,7 +751,7 @@ equals_vod_movies(Movies1, Movies2) ->
 % Setup/teardown
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 setup() ->
-    initialize_vodkatv(),
+    initialize_vodkatv(),eqc_www:startGraphServerIfNecessary(),
     fun teardown/0.
 
 teardown() ->

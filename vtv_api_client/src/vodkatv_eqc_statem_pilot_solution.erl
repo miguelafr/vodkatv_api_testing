@@ -63,7 +63,7 @@ login_args(S) ->
     ?LET({UserId, Password}, elements(S#state.valid_users), [UserId, Password]).
 
 login_pre(S)->
-    S#state.current_token == undefined andalso not_activated_user == undefined.
+    S#state.current_token == undefined andalso S#state.valid_users =/= [] andalso S#state.not_activated_user == undefined.
 
 login_next(S, V, [UserId, _Password]) ->
     S#state {
@@ -74,7 +74,7 @@ login_next(S, V, [UserId, _Password]) ->
         purchase_videoclub = undefined,
         vod_movies = [],
 
-        favourites = undefined,
+        favourites = [],
        current_tv = undefined
     }.
 

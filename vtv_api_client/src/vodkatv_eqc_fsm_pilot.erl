@@ -456,7 +456,7 @@ purchase_videoclub_product(Token, ProductId)->
     end.
 
 purchase_videoclub_product_pre(_From, _To, _S, _Args) ->
-   true.
+    true.
 
 purchase_videoclub_product_args(_From, _To, S) ->
     ProductId = case S#state.product_videoclub of
@@ -736,7 +736,7 @@ equals_vod_movies(Movies1, Movies2) ->
 % Setup/teardown
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 setup() ->
-    initialize_vodkatv(),
+    initialize_vodkatv(),eqc_www:startGraphServerIfNecessary(),
     fun teardown/0.
 
 teardown() ->
