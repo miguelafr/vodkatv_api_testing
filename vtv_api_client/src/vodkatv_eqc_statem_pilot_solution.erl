@@ -10,8 +10,8 @@
 
 -record(state, {
     valid_users, % users that have been registered and activated
-    not_activated_user, % user that has been registered
-    activation_code, % the code to activate last registered user
+    not_activated_users, % users that have been registered, but they have been activated yet
+    activation_codes, % list of codes to activate users
     current_user_id, % user that is currently logged in
     current_token, % a user that has logged in is given a token that has to be passed to all VoDKATV operations
     product_television, % identifier of a TV service
@@ -31,8 +31,8 @@ initial_state() ->
     {ok, TVChannels} = vodkatv_connector:find_all_channels(),
     #state {
         valid_users = [],
-        not_activated_user = undefined,
-        activation_code = undefined,
+        not_activated_users = [],
+        activation_codes = [],
         current_user_id = undefined,
         current_token = undefined,
         product_television = undefined,
@@ -63,7 +63,7 @@ login_args(S) ->
     ?LET({UserId, Password}, elements(S#state.valid_users), [UserId, Password]).
 
 login_pre(S)->
-    S#state.current_token == undefined andalso not_activated_user == undefined.
+    S#state.current_token == undefined andalso S#state.valid_users =/= [] andalso S#state.not_activated_users == [].
 
 login_next(S, V, [UserId, _Password]) ->
     S#state {
@@ -74,7 +74,7 @@ login_next(S, V, [UserId, _Password]) ->
         purchase_videoclub = undefined,
         vod_movies = [],
 
-        favourites = undefined,
+        favourites = [],
        current_tv = undefined
     }.
 
@@ -95,7 +95,7 @@ login_error_args(_S) ->
             ["invalid_user3", "invalid_password3"]]).
 
 login_error_pre(S)->
-    S#state.current_token == undefined andalso S#state.not_activated_user == undefined andalso S#state.recovery_user == undefined.
+    S#state.current_token == undefined andalso S#state.not_activated_users == [] andalso S#state.recovery_user == undefined.
 
 login_error_post(_S, _Args, {ok, R}) ->
     tag([{{login_error, R},
@@ -153,17 +153,17 @@ register_user(UserId, Password) ->
 
 register_user_next(S, _V, [UserId, Password]) ->
     S#state {
-        not_activated_user = {UserId, Password}
+        not_activated_users = [{UserId, Password}| S#state.not_activated_users]
     }.
 
 register_user_args(S) ->
-    ExistingUsers = S#state.valid_users,
+    ExistingUsers = S#state.valid_users ++ S#state.not_activated_users,
     ?LET(N,
         ?SUCHTHAT(N, nat(), (lists:keyfind(user_id(N), 1, ExistingUsers) == false)),
         [user_id(N), gen_password()]).
 
 register_user_pre(S)->
-    S#state.current_token == undefined andalso S#state.not_activated_user == undefined andalso S#state.recovery_user == undefined.
+    S#state.current_token == undefined andalso S#state.not_activated_users == [] andalso S#state.recovery_user == undefined.
 
 register_user_post(_S, [UserId, _Password], {ok, R}) ->
     UserSession = proplists:get_value("userSession", R),
@@ -182,14 +182,14 @@ register_user_duplicated(UserId, Password) ->
 
 register_user_duplicated_args(S) ->
     ?LET({UserId, _Password},
-        elements(S#state.valid_users),
+        elements(S#state.valid_users ++ S#state.not_activated_users),
         [UserId, gen_password()]).
 
 register_user_duplicated_pre(S)->
-    length(S#state.valid_users) > 0 andalso S#state.current_token == undefined andalso S#state.not_activated_user == undefined andalso S#state.recovery_user == undefined.
+    length(S#state.valid_users) > 0 andalso S#state.current_token == undefined andalso S#state.not_activated_users == [] andalso S#state.recovery_user == undefined.
 
 register_user_duplicated(S)->
-    S#state.current_token == undefined andalso S#state.not_activated_user == undefined andalso S#state.recovery_user == undefined.
+    S#state.current_token == undefined andalso S#state.not_activated_users == [] andalso S#state.recovery_user == undefined.
 
 register_user_duplicated_post(_S, [UserId, _Password],
         {error, {409, _Msg, R}}) ->
@@ -212,15 +212,14 @@ get_activation_code(UserId) ->
     end.
 
 get_activation_code_args(S) ->
-    {UserId, _Password}=S#state.not_activated_user, 
-    [UserId].
+    ?LET({UserId, _Password}, elements(S#state.not_activated_users), [UserId]).
 
 get_activation_code_pre(S)->
-    S#state.not_activated_user =/= undefined andalso S#state.activation_code == undefined.
+    S#state.not_activated_users =/= [] andalso S#state.activation_codes == [].
 
 get_activation_code_next(S, V, [UserId]) ->
     S#state {
-        activation_code = {UserId, V}
+        activation_codes = [{UserId, V} | S#state.activation_codes]
     }.
 
 get_activation_code_post(_S, _Args, {error, Error}) ->
@@ -240,19 +239,21 @@ activate_user(ActivationCode) ->
     end.
 
 activate_user_args(S) ->
-    {_UserId, ActivationCode}=S#state.activation_code, 
-    [ActivationCode].
+     ?LET({_UserId, ActivationCode}, elements(S#state.activation_codes),
+	  [ActivationCode]).
 
 activate_user_pre(S)->
-    S#state.not_activated_user =/= undefined andalso S#state.activation_code =/= undefined.
+    S#state.not_activated_users =/= [] andalso S#state.activation_codes =/= [].
 
 activate_user_next(S, V, [ActivationCode]) ->
-    {UserId, ActivationCode} = S#state.activation_code,
-    {_UserId, Password} = S#state.not_activated_user,
+    {UserId, _ActivationCode} = lists:keyfind(ActivationCode, 2, S#state.activation_codes),
+    {_UserId, Password} = lists:keyfind(UserId, 1, S#state.not_activated_users),
     S#state {
         valid_users = [{UserId, Password} | S#state.valid_users],
-        not_activated_user = undefined,
-        activation_code = undefined,
+        not_activated_users = lists:keydelete(UserId, 1,
+            S#state.activation_codes),
+        activation_codes = lists:keydelete(UserId, 1,
+            S#state.activation_codes),
         current_user_id = UserId,
         current_token = V
     }.
@@ -272,7 +273,7 @@ activate_user_wrong_activation_code_args(_S) ->
     ?LET(N, nat(), [integer_to_list(N)]).
 
 activate_user_wrong_activation_code_pre(S)->
-    S#state.not_activated_user =/= undefined andalso S#state.activation_code =/= undefined.
+    S#state.not_activated_users =/= [] andalso S#state.activation_codes =/= [].
 
 activate_user_wrong_activation_code_post(_S, [ActivationCode],
         {error, {404, _Msg, R}}) ->
@@ -298,7 +299,7 @@ password_recovery_args(S) ->
     ?LET({UserId, _Password}, elements(S#state.valid_users), [UserId]). % YOU NEED TO WRITE THIS, using login as an illustration. Functions proplists:delete(Key,List), lists:delete(Elem,List) and proplists:get_value(Key,List) could be useful for password recovery routines.
 
 password_recovery_pre(S) ->
-    length(S#state.valid_users) >0 andalso S#state.not_activated_user == undefined andalso S#state.activation_code == undefined andalso S#state.recovery_user == undefined. % YOU NEED TO WRITE THIS
+    length(S#state.valid_users) >0 andalso S#state.not_activated_users == [] andalso S#state.activation_codes == [] andalso S#state.recovery_user == undefined. % YOU NEED TO WRITE THIS
 
 password_recovery_next(S, _V, [UserId]) ->
     S#state{recovery_user=UserId}. % YOU NEED TO WRITE THIS

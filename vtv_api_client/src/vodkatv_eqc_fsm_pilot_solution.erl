@@ -753,7 +753,7 @@ equals_vod_movies(Movies1, Movies2) ->
 % Setup/teardown
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 setup() ->
-    initialize_vodkatv(),
+    initialize_vodkatv(),eqc_www:startGraphServerIfNecessary(),
     fun teardown/0.
 
 teardown() ->
