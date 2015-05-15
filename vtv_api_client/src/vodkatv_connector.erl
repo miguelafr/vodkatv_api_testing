@@ -126,6 +126,8 @@ password_recovery(UserId) ->
                     kst_erljson:json_to_erl(R)
                 end).
 
+change_password_from_code([], _Password) ->
+    {error, "Empty code"};
 change_password_from_code(Code, Password) ->
     Url = ?BASE_URL ++ "external/client/v2/core/users/" ++ Code ++
             "/passwordchange",
@@ -404,9 +406,17 @@ get_password_recovery_code(UserId) ->
                             ok
                     end,
                     {RootEl, _Misc} = xmerl_scan:string(Data),
-                    [AccountRemoteAccess] = RootEl#xmlElement.content,
-                    [ActivationCode] = AccountRemoteAccess#xmlElement.content,
-                    ActivationCode#xmlText.value
+                    case RootEl#xmlElement.content of
+                        [AccountRemoteAccess] ->
+                            case AccountRemoteAccess#xmlElement.content of
+                                [ActivationCode] ->
+                                    ActivationCode#xmlText.value;
+                                _ ->
+                                    ""
+                            end;
+                        _ ->
+                            ""
+                    end
                 end).
 
 find_all_channels() ->
