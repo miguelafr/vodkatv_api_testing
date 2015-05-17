@@ -763,10 +763,10 @@ prop() ->
         begin
             initialize_vodkatv(),
             {H, S, Res} = run_commands(?MODULE, Cmds),
-            eqc_fsm_tools:visualise(?MODULE, Cmds, {H, S, Res},
-                pretty_commands(?MODULE, Cmds, {H, S, Res},
-                    ?WHENFAIL((io:format("Res: ~p ~n", [Res])),
-                        (aggregate(command_names(Cmds), Res == ok)))))
+	    pretty_commands(?MODULE, Cmds, {H, S, Res},
+			    aggregate(command_names(Cmds),
+				      eqc_fsm_esi:collect(?MODULE, Cmds, {H, S, Res},
+							  Res == ok)))
         end)).
 
 start()->

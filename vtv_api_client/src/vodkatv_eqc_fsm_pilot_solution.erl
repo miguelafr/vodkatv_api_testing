@@ -189,8 +189,13 @@ get_activation_code(UserId) ->
             {error, Other}
     end.
 
-get_activation_code_args(_From, _To, S) ->
-    {UserId, _Password} = S#state.not_activated_user, [UserId].
+get_activation_code_pre(_From, _To, _S,undefined) ->false;
+get_activation_code_pre(_From, _To, _S,_Args) ->true.
+
+get_activation_code_args(_From, _To, S) when is_tuple(S#state.not_activated_user) ->
+    {UserId, _Password} = S#state.not_activated_user, [UserId];
+get_activation_code_args(_From, _To, _S) ->
+    undefined.
 
 get_activation_code_next(_From, _To, S, V, [UserId]) ->
     S#state {
@@ -213,9 +218,14 @@ activate_user(ActivationCode) ->
             {error, Other}
     end.
 
-activate_user_args(_From, _To, S) ->
+activate_user_pre(_From, _To, _S,undefined) ->false;
+activate_user_pre(_From, _To, _S,_Args) ->true.
+
+activate_user_args(_From, _To, S) when is_tuple(S#state.not_activated_user) ->
     {_UserId, ActivationCode} = S#state.activation_code,
-    [ActivationCode].
+    [ActivationCode];
+activate_user_args(_From, _To, _S) ->
+    undefined.
 
 activate_user_next(_From, _To, S, V, [_ActivationCode]) ->
     {UserId, _ActivationCode} = S#state.activation_code,
@@ -751,7 +761,7 @@ equals_vod_movies(Movies1, Movies2) ->
 % Setup/teardown
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 setup() ->
-    initialize_vodkatv(),eqc_www:startGraphServerIfNecessary(),
+    initialize_vodkatv(),
     fun teardown/0.
 
 teardown() ->
@@ -778,10 +788,10 @@ prop() ->
         begin
             initialize_vodkatv(),
             {H, S, Res} = run_commands(?MODULE, Cmds),
-            eqc_fsm_tools:visualise(?MODULE, Cmds, {H, S, Res},
-                pretty_commands(?MODULE, Cmds, {H, S, Res},
-                    ?WHENFAIL((io:format("Res: ~p ~n", [Res])),
-                        (aggregate(command_names(Cmds), Res == ok)))))
+	    pretty_commands(?MODULE, Cmds, {H, S, Res},
+			    aggregate(command_names(Cmds),
+				      eqc_fsm_esi:aggregate_transitions(?MODULE, Cmds, {H, S, Res},
+							  Res == ok)))
         end)).
 
 start()->
