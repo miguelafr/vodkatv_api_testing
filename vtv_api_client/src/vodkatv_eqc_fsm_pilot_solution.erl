@@ -289,8 +289,9 @@ get_password_recovery_code(UserId) ->
 get_password_recovery_code_args(_From, _To, S) ->
    [S#state.recovery_user]. % YOU NEED TO WRITE THIS, in part using login as an illustration
 
-get_password_recovery_code_next(_From, _To, S, V, [_UserId]) ->
-    S#state{recovery_code=V}. % YOU NEED TO WRITE THIS
+get_password_recovery_code_next(_From, _To, S, V, [UserId]) ->
+    S#state{recovery_code=V,
+	    valid_users=[{UserId,undefined}|proplists:delete(UserId,S#state.valid_users)]}. % YOU NEED TO WRITE THIS
 
 get_password_recovery_code_post(_From, _To, _S, _Args, {error, _Other}) ->
     false;
