@@ -736,7 +736,7 @@ equals_vod_movies(Movies1, Movies2) ->
 % Setup/teardown
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 setup() ->
-    initialize_vodkatv(),eqc_www:startGraphServerIfNecessary(),
+    initialize_vodkatv(),
     fun teardown/0.
 
 teardown() ->
@@ -765,7 +765,7 @@ prop() ->
             {H, S, Res} = run_commands(?MODULE, Cmds),
 	    pretty_commands(?MODULE, Cmds, {H, S, Res},
 			    aggregate(command_names(Cmds),
-				      eqc_fsm_esi:collect(?MODULE, Cmds, {H, S, Res},
+				      eqc_fsm_esi:aggregate_transitions(?MODULE, Cmds, {H, S, Res},
 							  Res == ok)))
         end)).
 
