@@ -69,6 +69,9 @@ login(UserId, Password) ->
 login_args(_From, _To, S) ->
     ?LET({UserId, Password}, elements(S#state.valid_users), [UserId, Password]).
 
+login_pre(_From, _To, S, [UserId, PassWord]) ->
+    lists:member({UserId, PassWord}, S#state.valid_users).
+
 login_next(_From, _To, S, V, [UserId, _Password]) ->
     S#state {
         current_user_id = UserId,
@@ -136,12 +139,17 @@ logout_next(_From, _To, S, _V, _Args) ->
 find_user_info(Token) ->
     vodkatv_connector:find_user_info(Token).
 
+find_user_info_pre(_,_,S,[Arg]) ->
+  Arg == S#state.current_token.
+
 find_user_info_args(_From, _To, S) ->
     [S#state.current_token].
 
 find_user_info_post(_From, _To, S, _Args, {ok, R}) ->
-    UserInfo = proplists:get_value("userInfo", R),
-    UserId = proplists:get_value("userId", UserInfo),
+    UserId = case proplists:get_value("userInfo", R) of
+               undefined -> {bad_user_info, R};
+               UserInfo  -> proplists:get_value("userId", UserInfo)
+             end,
     tag([{find_user_info, (UserId == S#state.current_user_id)}]);
 find_user_info_post(_From, _To, _S, _Args, R) ->
     tag([{{find_user_info, R}, false}]).
@@ -230,6 +238,12 @@ activate_user(ActivationCode) ->
 activate_user_args(_From, _To, S) ->
     ?LET({_UserId, ActivationCode}, elements(S#state.activation_codes),
         [ActivationCode]).
+
+%activate_user_pre(_From, _To, S, [ActivationCode]) ->
+    %case lists:keyfind(ActivationCode, 2, S#state.activation_codes) of
+      %{UserId, _} -> lists:keymember(UserId, 1, S#state.not_activated_users);
+      %_           -> false
+    %end.
 
 activate_user_next(_From, _To, S, V, [ActivationCode]) ->
     {UserId, _ActivationCode} = lists:keyfind(ActivationCode, 2, S#state.activation_codes),
@@ -682,8 +696,11 @@ remove_tv_channel_from_favourite_channels(Token, TVChannel) ->
             {error, Other}
     end.
 
-remove_tv_channel_from_favourite_channels_pre(_From, _To, _S, [_Token, TVChannel]) ->
-    TVChannel /= undefined.
+remove_tv_channel_from_favourite_channels_pre(_From, _To, S, [_Token, TVChannel]) ->
+    lists:member(TVChannel, tv_favourite_channels(S)).
+
+tv_favourite_channels(S) ->
+  proplists:get_value(S#state.current_user_id, S#state.tv_favourite_channels, []).
 
 remove_tv_channel_from_favourite_channels_args(_From, _To, S) -> 
     case proplists:get_value(
@@ -981,10 +998,11 @@ prop() ->
         begin
             initialize_vodkatv(),
             {H, S, Res} = run_commands(?MODULE, Cmds),
-            eqc_fsm_tools:visualise(?MODULE, Cmds, {H, S, Res},
+            %eqc_fsm_tools:visualise(?MODULE, Cmds, {H, S, Res},
                 pretty_commands(?MODULE, Cmds, {H, S, Res},
                     ?WHENFAIL((io:format("Res: ~p ~n", [Res])),
-                        (aggregate(command_names(Cmds), Res == ok)))))
+                        (aggregate(command_names(Cmds), 
+                          examples:boring(eqc_fsm_callbacks:new(?MODULE), Cmds, H)))))
         end)).
 
 start()->
