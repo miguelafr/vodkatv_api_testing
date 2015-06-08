@@ -1,4 +1,4 @@
--module(vodkatv_eqc_statem_pilot_solution).
+-module(vodkatv_eqc_statem_pilot_laura2).
 
 -include_lib("eqc/include/eqc.hrl"). 
 -include_lib("eqc/include/eqc_statem.hrl").
@@ -12,19 +12,17 @@
     valid_users, % users that have been registered and activated
     not_activated_user, % user that has been registered
     activation_code, % the code to activate last registered user
+    precovery_code,  % the code to change a forgotten password
     current_user_id, % user that is currently logged in
     current_token, % a user that has logged in is given a token that has to be passed to all VoDKATV operations
     product_television, % identifier of a TV service
     product_videoclub,  % identifier of a VOD service
-    purchase_videoclub, % id of the VOD purchase, used for cancellation
+    purchase_television, % id of the TV purchase, used for cancellation
+    purchase_videoclub,  % id of the VOD purchase, used for cancellation
     tv_channels, % list of all possible channels, obtained at initialisation via admin service
+    favourite_tv_channels,
     vod_movies, 
-    vod_rented_movies,
-
-    recovery_user,
-    recovery_code,
-    current_tv,
-    favourites
+    vod_rented_movies
 }).
 
 initial_state() ->
@@ -33,19 +31,17 @@ initial_state() ->
         valid_users = [],
         not_activated_user = undefined,
         activation_code = undefined,
+        precovery_code = undefined,
         current_user_id = undefined,
         current_token = undefined,
         product_television = undefined,
         product_videoclub = undefined,
+        purchase_television = undefined,
         purchase_videoclub = undefined,
         tv_channels = TVChannels,
+        favourite_tv_channels = [],
         vod_movies = [],
-        vod_rented_movies = [],
-
-       recovery_user=undefined,
-       recovery_code=undefined,
-       current_tv=undefined,
-       favourites=[]
+        vod_rented_movies = []
     }.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -63,7 +59,7 @@ login_args(S) ->
     ?LET({UserId, Password}, elements(S#state.valid_users), [UserId, Password]).
 
 login_pre(S)->
-    S#state.current_token == undefined andalso S#state.valid_users =/= [] andalso S#state.not_activated_user == undefined andalso S#state.recovery_user == undefined.
+    S#state.current_token == undefined andalso S#state.valid_users =/= [] andalso S#state.not_activated_user == undefined andalso S#state.precovery_code == undefined.
 
 login_next(S, V, [UserId, _Password]) ->
     S#state {
@@ -71,11 +67,9 @@ login_next(S, V, [UserId, _Password]) ->
         current_token = V,
         product_television = undefined,
         product_videoclub = undefined,
+        purchase_television = undefined,
         purchase_videoclub = undefined,
-        vod_movies = [],
-
-        favourites = [],
-       current_tv = undefined
+        vod_movies = []
     }.
 
 login_post(_S, _Args, {error, Error}) ->
@@ -95,7 +89,7 @@ login_error_args(_S) ->
             ["invalid_user3", "invalid_password3"]]).
 
 login_error_pre(S)->
-    S#state.current_token == undefined andalso S#state.not_activated_user == undefined andalso S#state.recovery_user == undefined.
+    S#state.current_token == undefined andalso S#state.not_activated_user == undefined.
 
 login_error_post(_S, _Args, {ok, R}) ->
     tag([{{login_error, R},
@@ -113,7 +107,8 @@ logout_args(S) ->
     [S#state.current_token].
 
 logout_pre(S)->
-    S#state.current_token =/= undefined andalso S#state.current_tv == undefined andalso S#state.purchase_videoclub == undefined.
+    S#state.current_token =/= undefined andalso S#state.purchase_videoclub == undefined
+	andalso S#state.purchase_television == undefined.
 
 logout_next(S, _V, _Args) ->
     S#state {
@@ -121,8 +116,8 @@ logout_next(S, _V, _Args) ->
         current_token = undefined,
         product_television = undefined,
         product_videoclub = undefined,
+        purchase_television = undefined,
         purchase_videoclub = undefined,
-        current_tv = undefined,
         vod_movies = []
     }.
 
@@ -163,7 +158,7 @@ register_user_args(S) ->
         [user_id(N), gen_password()]).
 
 register_user_pre(S)->
-    S#state.current_token == undefined andalso S#state.not_activated_user == undefined andalso S#state.recovery_user == undefined.
+    S#state.current_token == undefined andalso S#state.not_activated_user == undefined.
 
 register_user_post(_S, [UserId, _Password], {ok, R}) ->
     UserSession = proplists:get_value("userSession", R),
@@ -186,10 +181,10 @@ register_user_duplicated_args(S) ->
         [UserId, gen_password()]).
 
 register_user_duplicated_pre(S)->
-    length(S#state.valid_users) > 0 andalso S#state.current_token == undefined andalso S#state.not_activated_user == undefined andalso S#state.recovery_user == undefined.
+    length(S#state.valid_users) > 0 andalso S#state.current_token == undefined andalso S#state.not_activated_user == undefined.
 
 register_user_duplicated(S)->
-    S#state.current_token == undefined andalso S#state.not_activated_user == undefined andalso S#state.recovery_user == undefined.
+    S#state.current_token == undefined andalso S#state.not_activated_user == undefined.
 
 register_user_duplicated_post(_S, [UserId, _Password],
         {error, {409, _Msg, R}}) ->
@@ -295,15 +290,17 @@ password_recovery(UserId) ->
     vodkatv_connector:password_recovery(UserId).
 
 password_recovery_args(S) ->
-    ?LET({UserId, _Password}, elements(S#state.valid_users), [UserId]). % YOU NEED TO WRITE THIS, using login as an illustration. Functions proplists:delete(Key,List), lists:delete(Elem,List) and proplists:get_value(Key,List) could be useful for password recovery routines.
+    ?LET({UserId, _Password}, elements(S#state.valid_users), [UserId]).
 
 password_recovery_pre(S) ->
-    S#state.current_token == undefined andalso S#state.valid_users =/= [] andalso S#state.not_activated_user == undefined andalso S#state.activation_code == undefined andalso S#state.recovery_user == undefined. % YOU NEED TO WRITE THIS
+    S#state.current_token == undefined andalso S#state.valid_users =/= []
+	andalso S#state.not_activated_user == undefined.
 
 password_recovery_next(S, _V, [UserId]) ->
-    S#state{recovery_user=UserId,
+    S#state {
+      precovery_code = {UserId, pending},
       valid_users=[{UserId,undefined}|proplists:delete(UserId,S#state.valid_users)]
-}. % YOU NEED TO WRITE THIS
+    }.
 
 password_recovery_post(_S, [_UserId], {ok, _R}) ->
     true;
@@ -322,13 +319,25 @@ get_password_recovery_code(UserId) ->
     end.
 
 get_password_recovery_code_args(S) ->
-   [S#state.recovery_user]. % YOU NEED TO WRITE THIS, in part using login as an illustration
+    {UserId, pending}=S#state.precovery_code,[UserId].
 
 get_password_recovery_code_pre(S)->
-    S#state.recovery_user =/= undefined.
+    case S#state.precovery_code of
+	{_,pending}->% the process has been initiated
+	    S#state.current_token == undefined andalso S#state.valid_users =/= []
+		andalso S#state.not_activated_user == undefined;
+	_ ->false
+    end.
 
 get_password_recovery_code_next(S, V, [_UserId]) ->
-    S#state{recovery_code=V}. % YOU NEED TO WRITE THIS
+    case S#state.precovery_code of
+	{UserID, pending} ->
+	    S#state {
+	      precovery_code = {UserID, V}
+	     };
+	{_DifferentUserID, _Code} ->
+	    S
+    end.
 
 get_password_recovery_code_post(_S, _Args, {error, _Other}) ->
     false;
@@ -338,17 +347,24 @@ get_password_recovery_code_post(_S, _Args, _R) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Change password from code
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-change_password_from_code(PasswordRecoveryCode, Password) ->
+change_password_from_code({_UserID, PasswordRecoveryCode}, Password) ->
     vodkatv_connector:change_password_from_code(PasswordRecoveryCode, Password).
 
 change_password_from_code_args(S) ->
-    [S#state.recovery_code,gen_password()]. % YOU NEED TO WRITE THIS
+    [S#state.precovery_code, gen_password()].
 
 change_password_from_code_pre(S) ->
-    S#state.recovery_code =/= undefined.
+    S#state.current_token == undefined andalso S#state.valid_users =/= []
+	andalso S#state.not_activated_user == undefined
+	andalso S#state.precovery_code =/= undefined
+	andalso element(2,S#state.precovery_code) =/= pending.
 
-change_password_from_code_next(S, _V,[_PasswordRecoveryCode, Password]) ->
-    S#state{valid_users=[{S#state.recovery_user,Password}|proplists:delete(S#state.recovery_user,S#state.valid_users)],recovery_user = undefined, recovery_code = undefined}. % YOU NEED TO WRITE THIS, do not forget that new password needs to be stored for the benefit of login
+change_password_from_code_next(S, _V,[{UserID,_PasswordRecoveryCode}, Password]) ->
+    S#state {
+      precovery_code = undefined,
+      valid_users = lists:keyreplace(UserID, 1, S#state.valid_users,
+				     {UserID, Password})
+    }.
 
 change_password_from_code_post(_S, [_PasswordRecoveryCode, _Password], {ok, _R}) ->
     true;
@@ -399,7 +415,8 @@ purchase_television_product(Token, ProductId)->
     end.
 
 purchase_television_product_pre(S) ->
-    S#state.product_television =/= undefined andalso S#state.current_token =/= undefined andalso S#state.current_tv == undefined andalso S#state.purchase_videoclub == undefined. % YOU NEED TO WRITE THIS, but note that we are modelling behaviour from a single user point of view, hence only one user can use a television at a time. 
+   S#state.current_token =/= undefined andalso S#state.purchase_television == undefined andalso purchase_videoclub =/= undefined 
+	andalso S#state.product_television =/= undefined. % forces find_products to be executed before purchasing
 
 purchase_television_product_args(S) ->
     ProductId = case S#state.product_television of
@@ -411,7 +428,9 @@ purchase_television_product_args(S) ->
     [S#state.current_token, ProductId].
 
 purchase_television_product_next(S, V, [_Token, _ProductId]) ->
-    S#state{current_tv=V}. % YOU NEED TO WRITE THIS, but note that we are modelling behaviour from a single user point of view, hence only one user can use a television at a time. 
+    S#state {
+        purchase_television = V
+    }.
 
 purchase_television_product_post(_S, _Args, {error, R}) ->
     tag([{{purchase_television_product, R}, false}]);
@@ -425,13 +444,15 @@ cancel_television_product(PurchaseId) ->
     vodkatv_connector:delete_purchase(PurchaseId).
 
 cancel_television_product_args(S) ->
-    [S#state.current_tv]. % YOU NEED TO WRITE THIS
+    [S#state.purchase_television].
 
 cancel_television_product_pre(S)->
-    S#state.current_tv =/= undefined.
+    S#state.purchase_television =/= undefined.
 
 cancel_television_product_next(S, _V, [_ProductId]) ->
-    S#state{current_tv = undefined,favourites=[]}. % YOU NEED TO WRITE THIS
+    S#state {
+      purchase_television = undefined
+    }.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Find tv channels
@@ -446,10 +467,10 @@ find_tv_channels(Token) ->
     end.
 
 find_tv_channels_args(S) -> 
-    [S#state.current_token]. % YOU NEED TO WRITE THIS
+    [S#state.current_token].
 
 find_tv_channels_pre(S) ->
-    S#state.current_tv =/= undefined. % YOU NEED TO WRITE THIS
+    S#state.current_token =/= undefined andalso S#state.purchase_television =/= undefined.
 
 find_tv_channels_post(_S, _Args, {error, R}) ->
     tag([{{find_tv_channels, R}, false}]);
@@ -470,13 +491,25 @@ add_tv_channel_to_favourite_channels(Token, TVChannel) ->
     end.
 
 add_tv_channel_to_favourite_channels_args(S) -> 
-    [S#state.current_token,?SUCHTHAT(TVChannel,elements(S#state.tv_channels),not lists:member(TVChannel,S#state.favourites))]. % YOU NEED TO WRITE THIS, probably using ?SUCHTHAT(X,Generator,Condition)
+    [S#state.current_token,
+     elements(S#state.tv_channels)]. % I did not use ?SUCHTHAT(X,Generator,Condition) :-?
 
 add_tv_channel_to_favourite_channels_pre(S) -> 
-    S#state.current_tv =/= undefined andalso length(S#state.tv_channels) > length(S#state.favourites).
+    S#state.current_token =/= undefined andalso S#state.purchase_television =/= undefined.
 
 add_tv_channel_to_favourite_channels_next(S, _V, [_Token, TVChannel]) ->
-    S#state{favourites=[TVChannel|S#state.favourites]}. % YOU NEED TO WRITE THIS
+    UserID = S#state.current_user_id,
+    case lists:keyfind(UserID, 1, S#state.favourite_tv_channels) of
+	false ->
+	    S#state {
+	      favourite_tv_channels = [{UserID, [TVChannel]} | S#state.favourite_tv_channels]
+	     };
+	{UserID, FavouriteTVChannels} ->
+	    S#state {
+	      favourite_tv_channels = lists:keyreplace(UserID, 1, S#state.favourite_tv_channels,
+						      {UserID, lists:usort([TVChannel|FavouriteTVChannels])})
+	     }
+    end.
 
 add_tv_channel_to_favourite_channels_post(_S, _Args, {error, _R}) ->
     false;
@@ -497,13 +530,23 @@ remove_from_favourite_channels(Token, TVChannel) ->
     end.
 
 remove_from_favourite_channels_pre(S) ->
-    S#state.current_tv =/= undefined andalso length(S#state.favourites) > 0. % YOU NEED TO WRITE THIS
+    S#state.current_token =/= undefined andalso S#state.purchase_television =/= undefined.
 
 remove_from_favourite_channels_args(S) -> 
-    [S#state.current_token,elements(S#state.favourites)]. % YOU NEED TO WRITE THIS
+    [S#state.current_token,
+     elements(S#state.tv_channels)]. % only UserID's favourite ones?
 
 remove_from_favourite_channels_next(S, _V, [_Token, TVChannel]) ->
-    S#state{favourites=lists:delete(TVChannel,S#state.favourites)}. % YOU NEED TO WRITE THIS
+    UserID = S#state.current_user_id,
+    case lists:keyfind(UserID, 1, S#state.favourite_tv_channels) of
+	false ->
+	    S;
+	{UserID, FavouriteTVChannels} ->
+	    S#state {
+	      favourite_tv_channels = lists:keyreplace(UserID, 1, S#state.favourite_tv_channels,
+						      {UserID, lists:delete(TVChannel, FavouriteTVChannels)})
+	     }
+    end.
 
 remove_from_favourite_channels_post(_S, _Args, {error, R}) ->
     tag([{{remove_tv_channel_from_favourite_channels, R}, false}]);
@@ -523,7 +566,8 @@ purchase_videoclub_product(Token, ProductId)->
     end.
 
 purchase_videoclub_product_pre(S) ->
-   S#state.product_videoclub =/= undefined andalso S#state.current_token =/= undefined andalso S#state.current_tv == undefined andalso S#state.purchase_videoclub == undefined.
+   S#state.current_token =/= undefined andalso S#state.purchase_videoclub == undefined
+	andalso S#state.product_videoclub =/= undefined. % forces find_products to be called before purchasing
 
 purchase_videoclub_product_args(S) ->
     ProductId = case S#state.product_videoclub of
@@ -571,7 +615,7 @@ find_tv_channels_not_allowed_args(S) ->
     [S#state.current_token].
 
 find_tv_channels_not_allowed_pre(S) ->
-    S#state.current_token =/= undefined andalso S#state.current_tv == undefined andalso S#state.purchase_videoclub == undefined.
+    S#state.current_token =/= undefined andalso S#state.purchase_television == undefined.
 
 find_tv_channels_not_allowed_post(_S, _Args, {ok, R}) ->
     [Error] = proplists:get_value("errors", R),
@@ -644,7 +688,8 @@ find_vod_movies_not_allowed_args(S) ->
     [S#state.current_token, 1, ?MAX_VOD_MOVIES].
 
 find_vod_movies_not_allowed_pre(S) -> 
-    S#state.current_token =/= undefined andalso S#state.purchase_videoclub == undefined.
+    S#state.current_token =/= undefined andalso S#state.purchase_videoclub == undefined
+	andalso S#state.purchase_television == undefined.
 
 find_vod_movies_not_allowed_post(_S, _Args, {ok, R}) ->
     [Error] = proplists:get_value("errors", R),
@@ -842,15 +887,13 @@ initialize_vodkatv() ->
 prop() ->
     ?SETUP(fun setup/0,
         ?FORALL(Cmds, noshrink(commands(?MODULE)),
-		numtests(
-		  300,
 		  begin
 		      initialize_vodkatv(),
 		      {H, S, Res} = run_commands(?MODULE, Cmds),
 		      pretty_commands(?MODULE, Cmds, {H, S, Res},
 			    aggregate(command_names(Cmds),
 				      Res == ok))
-		  end))).
+		  end)).
 
 start()->
     case eqc:quickcheck(prop()) of
