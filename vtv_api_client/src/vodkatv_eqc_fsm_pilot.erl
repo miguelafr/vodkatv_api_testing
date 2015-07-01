@@ -50,6 +50,9 @@ login(UserId, Password) ->
             {error, Other}
     end.
 
+login_pre(_From, _To, S) ->
+    S#state.valid_users =/= [].
+
 login_args(_From, _To, S) ->
     ?LET({UserId, Password}, elements(S#state.valid_users), [UserId, Password]).
 
@@ -736,6 +739,7 @@ equals_vod_movies(Movies1, Movies2) ->
 % Setup/teardown
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 setup() ->
+    eqc_fsm_cov:resetCoverageInformationInETS(?MODULE),
     initialize_vodkatv(),
     fun teardown/0.
 
@@ -763,11 +767,19 @@ prop() ->
         begin
             initialize_vodkatv(),
             {H, S, Res} = run_commands(?MODULE, Cmds),
-	    pretty_commands(?MODULE, Cmds, {H, S, Res},
-			    aggregate(command_names(Cmds),
-				      eqc_fsm_esi:aggregate_transitions(?MODULE, Cmds, {H, S, Res},
-							  Res == ok)))
+	    if 
+		Res == ok->eqc_fsm_cov:updateCoverageInformationInETS(?MODULE,Cmds);
+		true -> ok
+	    end,
+	    pretty_commands(?MODULE, Cmds, {H, S, Res},aggregate(command_names(Cmds), 
+								 if Res == ok -> true;
+								    true->eqc_fsm_esi:aggregate_transitions(?MODULE, Cmds, {H, S, Res}, Res == ok)
+								 end))
         end)).
+
+show()->
+    application:set_env(eqc, eqc_webserver, "../www"),application:set_env(eqc, eqc_fsm_esi_html, "graph.html"),
+    eqc_fsm_esi:start(?MODULE).
 
 start()->
     case eqc:quickcheck(prop()) of

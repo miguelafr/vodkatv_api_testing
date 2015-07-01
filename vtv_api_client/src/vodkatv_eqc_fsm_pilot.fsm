@@ -33,24 +33,5 @@ not_logged() ->
     {waiting_for_activation_code,register_user}
   ].
 
-weight(activation_code_received,logged,{call,_,activate_user,_}) -> 1;
-weight(activation_code_received,activation_code_received,{call,_,activate_user_wrong_activation_code,_}) -> 1;
-weight(waiting_for_activation_code,activation_code_received,{call,_,get_activation_code,_}) -> 1;
-weight(videoclub_purchased,logged,{call,_,cancel_videoclub_product,_}) -> 1;
-weight(videoclub_purchased,videoclub_purchased,{call,_,find_vod_movies,_}) -> 1;
-weight(videoclub_purchased,videoclub_purchased,{call,_,rent_vod_movie,_}) -> 1;
-weight(videoclub_purchased,videoclub_purchased,{call,_,find_vod_rented_movies,_}) -> 1;
-weight(logged,not_logged,{call,_,logout,_}) -> 1;
-weight(logged,logged,{call,_,find_user_info,_}) -> 1;
-weight(logged,logged,{call,_,find_products,_}) -> 1;
-weight(logged,logged,{call,_,find_tv_channels_not_allowed,_}) -> 1;
-weight(logged,logged,{call,_,find_vod_movies_not_allowed,_}) -> 1;
-weight(logged,videoclub_purchased,{call,_,purchase_videoclub_product,_}) -> 1;
-weight(not_logged,logged,{call,_,login,_}) -> 1;
-weight(not_logged,not_logged,{call,_,login_error,_}) -> 1;
-weight(not_logged,not_logged,{call,_,find_tv_channels_not_logged,_}) -> 1;
-weight(not_logged,not_logged,{call,_,find_vod_movies_not_logged,_}) -> 1;
-weight(not_logged,not_logged,{call,_,register_user_duplicated,_}) -> 1;
-weight(not_logged,waiting_for_activation_code,{call,_,register_user,_}) -> 1;
-weight(_,_,_) -> 1.
+weight(_,_,_,_) -> 1.
 
