@@ -763,7 +763,7 @@ initialize_vodkatv() ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 prop() ->
     ?SETUP(fun setup/0,
-        ?FORALL(Cmds, noshrink(commands(?MODULE)),
+        ?FORALL(Cmds, commands(?MODULE),
         begin
             initialize_vodkatv(),
             {H, S, Res} = run_commands(?MODULE, Cmds),
